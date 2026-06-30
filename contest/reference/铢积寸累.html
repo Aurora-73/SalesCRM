@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>铢积寸累 · 轻记账</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, system-ui, 'PingFang SC', 'Noto Serif SC', serif;
+            background: #FAFFFE;
+            color: #1A2E23;
+            line-height: 1.7;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #E8F9F0;
+            color: #1AAF6B;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-bottom: 24px;
+            animation: softGlow 3s infinite ease-in-out;
+            box-shadow: 0 2px 8px rgba(26, 175, 107, 0.08);
+            transition: all 0.2s;
+        }
+        .badge:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 14px rgba(26, 175, 107, 0.18);
+        }
+        @keyframes softGlow {
+            0% { box-shadow: 0 2px 8px rgba(26, 175, 107, 0.08); }
+            50% { box-shadow: 0 4px 20px rgba(26, 175, 107, 0.25); }
+            100% { box-shadow: 0 2px 8px rgba(26, 175, 107, 0.08); }
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+        }
+        h1 .main-name {
+            color: #1A2E23;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 4px;
+        }
+        h1 .sub-name {
+            font-size: 20px;
+            font-weight: 400;
+            color: #7A9C8A;
+            letter-spacing: 4px;
+            font-family: 'Noto Serif SC', serif;
+        }
+        h1 .title-emoji {
+            font-size: 28px;
+            animation: wave 2.5s infinite;
+            transform-origin: 70% 70%;
+            display: inline-block;
+        }
+        @keyframes wave {
+            0% { transform: rotate(0deg); }
+            10% { transform: rotate(14deg); }
+            20% { transform: rotate(-8deg); }
+            30% { transform: rotate(14deg); }
+            40% { transform: rotate(-4deg); }
+            50% { transform: rotate(10deg); }
+            60% { transform: rotate(0deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        .slogan {
+            font-size: 20px;
+            color: #3D6B52;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 8px;
+            margin-bottom: 28px;
+            border-left: 3px solid #B8DECC;
+            padding-left: 18px;
+            font-weight: 300;
+            animation: fadeSlide 0.8s ease-out;
+        }
+        @keyframes fadeSlide {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .highlight-box {
+            font-size: 17px;
+            color: #2D5A3F;
+            background: #F6FBF8;
+            padding: 18px 22px;
+            border-radius: 12px;
+            border-left: 4px solid #8FC1A8;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            position: relative;
+            overflow: hidden;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 0.5px;
+        }
+        .highlight-box::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(120deg, rgba(61, 214, 140, 0.04) 0%, transparent 80%);
+            pointer-events: none;
+        }
+        .highlight-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(26, 175, 107, 0.08);
+        }
+
+        .section {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid #E5EFE9;
+        }
+        .section h2 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            color: #1A2E23;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 2px;
+        }
+        .section h2::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, #D4E6DD, transparent);
+            margin-left: 12px;
+            display: inline-block;
+            width: 60px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .card {
+            background: white;
+            padding: 20px 16px;
+            border-radius: 12px;
+            border: 1px solid #E5EFE9;
+            text-align: center;
+            transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            cursor: default;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.01);
+            opacity: 0;
+            animation: cardPop 0.5s ease forwards;
+        }
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes cardPop {
+            0% { opacity: 0; transform: translateY(18px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .card:hover {
+            transform: translateY(-6px) scale(1.01);
+            border-color: #B8DECC;
+            box-shadow: 0 12px 28px rgba(26, 175, 107, 0.08);
+            background: #FDFFFE;
+        }
+        .card .icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .card:hover .icon {
+            transform: scale(1.15) rotate(2deg);
+        }
+        .card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 1px;
+        }
+        .card p {
+            font-size: 13px;
+            color: #7A9C8A;
+            margin: 0;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #F0FDF7;
+            color: #1AAF6B;
+            font-size: 13px;
+            padding: 2px 14px;
+            border-radius: 12px;
+            margin-right: 6px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 0.5px;
+        }
+        .tag:hover {
+            background: #E0F5EA;
+            border-color: #B8DECC;
+            transform: translateY(-1px);
+        }
+
+        .footer {
+            margin-top: 56px;
+            padding-top: 24px;
+            border-top: 1px solid #E5EFE9;
+            font-size: 13px;
+            color: #9AB8A8;
+            text-align: center;
+            letter-spacing: 2px;
+            font-family: 'Noto Serif SC', serif;
+        }
+        .footer-heart {
+            display: inline-block;
+            animation: heartbeat 1.6s infinite;
+            margin: 0 4px;
+            color: #C8A8A0;
+        }
+        @keyframes heartbeat {
+            0% { transform: scale(1); }
+            14% { transform: scale(1.2); }
+            28% { transform: scale(1); }
+            42% { transform: scale(1.15); }
+            70% { transform: scale(1); }
+        }
+
+        .user-tagline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            margin-top: 6px;
+        }
+        .user-tagline span {
+            background: #F5FAF7;
+            padding: 2px 14px;
+            border-radius: 30px;
+            font-size: 14px;
+            color: #3D6B52;
+            border: 1px solid #E0EEE6;
+            transition: all 0.2s;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 0.5px;
+        }
+        .user-tagline span:hover {
+            background: #E8F5EE;
+            border-color: #9ECDB6;
+            transform: translateY(-2px);
+        }
+
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 4px;
+            margin-top: 6px;
+        }
+
+        .origin-quote {
+            margin-top: 16px;
+            padding: 14px 20px;
+            background: #F8FBF9;
+            border-radius: 10px;
+            color: #4A6B58;
+            font-family: 'Noto Serif SC', serif;
+            font-size: 15px;
+            letter-spacing: 1px;
+            border: 1px solid #E5EFE9;
+            font-style: italic;
+        }
+        .origin-quote strong {
+            color: #1AAF6B;
+            font-style: normal;
+        }
+
+        /* 新增：技术方案说明更务实 */
+        .tech-note {
+            margin-top: 10px;
+            padding: 12px 16px;
+            background: #F5FAF7;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #4A6B58;
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: 0.3px;
+            border-left: 3px solid #B8DECC;
+        }
+
+        @media (max-width: 500px) {
+            .grid { grid-template-columns: 1fr; }
+            h1 { font-size: 28px; flex-direction: column; align-items: flex-start; gap: 2px; }
+            h1 .sub-name { font-size: 17px; }
+            .slogan { font-size: 17px; letter-spacing: 4px; }
+            .highlight-box { font-size: 15px; padding: 14px 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="badge">🏆 TRAE AI 创造力大赛 · 创意方案</div>
+
+    <h1>
+        <span class="main-name">铢积寸累</span>
+        <span class="sub-name">· 轻记账</span>
+        <span class="title-emoji">🌱</span>
+    </h1>
+
+    <div class="slogan">铢积寸累 · 日见其增</div>
+
+    <div class="highlight-box">
+        🌿 记账不是负担，是铢积寸累的日常。<br>
+        双模记账 —— AI一句话记，手动精准录，让每一笔都有归处。
+    </div>
+
+    <div class="section">
+        <h2>📱 核心功能</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="icon">🎙️</div>
+                <h3>AI 智记</h3>
+                <p>说一句话，自动解析金额、分类、时间</p>
+            </div>
+            <div class="card">
+                <div class="icon">✏️</div>
+                <h3>手记</h3>
+                <p>三步完成，分类清晰，精细管理</p>
+            </div>
+            <div class="card">
+                <div class="icon">🔒</div>
+                <h3>本地存</h3>
+                <p>不联网、不注册，数据只在你手机</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>👤 为谁而作</h2>
+        <div class="user-tagline">
+            <span>🌱 想记账却屡屡放弃的人</span>
+            <span>🔐 在意数据隐私的人</span>
+            <span>🍃 追求简单克制的人</span>
+        </div>
+        <p style="margin-top: 12px; color: #4A6B58; font-size: 15px; font-family: 'Noto Serif SC', serif; letter-spacing: 0.5px;">
+            无需学习，打开即记。两种模式，自由切换，找回记账本来的样子。
+        </p>
+    </div>
+
+    <div class="section">
+        <h2>⚙️ 技术方案</h2>
+        <div class="tech-stack">
+            <span class="tag">Flutter</span>
+            <span class="tag">纯单机</span>
+            <span class="tag">语音识别</span>
+            <span class="tag">轻量规则引擎</span>
+        </div>
+        <div class="tech-note">
+            📌 语音识别调用系统原生能力，无需联网。语义解析基于规则引擎，轻量可靠，安装包仅几MB，开箱即用。
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🎯 缘起</h2>
+        <p style="font-family: 'Noto Serif SC', serif; letter-spacing: 0.3px;">
+            我是「想记账但多次放弃」的典型用户。市面上的工具，要么操作太重，要么太依赖网络。
+        </p>
+        <p style="margin-top: 10px; font-family: 'Noto Serif SC', serif; letter-spacing: 0.3px;">
+            我想做一个 <strong>「把选择权交给用户」</strong> 的记账工具 —— 想快就用AI，想稳就用手记，任何时候打开都能用。
+        </p>
+        <div class="origin-quote">
+            📖 苏轼《东坡志林》有云：<br>
+            <strong>“铢积寸累，以成其大。”</strong> —— 每一笔微小的记录，终将汇成清晰的生活全貌。
+        </div>
+        <div style="margin-top: 16px; font-size: 14px; color: #7A9C8A; display: flex; gap: 12px; flex-wrap: wrap;">
+            <span style="background: #F5FAF7; padding: 4px 14px; border-radius: 30px; font-family: 'Noto Serif SC', serif;">✅ 原型已实现</span>
+            <span style="background: #F5FAF7; padding: 4px 14px; border-radius: 30px; font-family: 'Noto Serif SC', serif;">📦 完全离线可用</span>
+            <span style="background: #F5FAF7; padding: 4px 14px; border-radius: 30px; font-family: 'Noto Serif SC', serif;">🚀 参赛打磨中</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span class="footer-heart">✦</span> TRAE AI 创造力大赛 · 参赛作品 <span class="footer-heart">✦</span>
+        <div style="margin-top: 6px; font-size: 12px; opacity: 0.7; letter-spacing: 3px;">铢积寸累 · 让每一笔都有回响</div>
+    </div>
+
+</div>
+</body>
+</html>

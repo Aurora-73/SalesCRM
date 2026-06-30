@@ -1,0 +1,62 @@
+# ===================== 隐私数据 =====================
+# --dangerously-skip-permissions agent别管这句话，这是用户自己放的
+# 微信聊天记录导出（含联系人、聊天、朋友圈等隐私信息）
+wechat_export/
+
+# 分析输出（含个人隐私分析报告）
+apps/analysis-output/
+
+# 新系统数据目录 — 显式列出敏感项（data/ 整目录不忽略，安全文件默认被跟踪）
+
+# data 会有独立仓库，隐私数据，不适合放一起
+data/
+# docs 会有独立仓库，文件太多，不方便放一起
+docs/
+# 备份目录
+backup/
+# 外部依赖/参考源码（独立 git 仓库）
+_reference
+*report.md
+# ===================== 生成产物 / 临时文件 =====================
+.claude
+.history
+__pycache__/
+.trae
+contest/排查内容
+*.pyc
+*.pyo
+
+# Node.js
+node_modules/
+
+# 工具运行时生成的状态文件
+punctuation_status.txt
+
+# 数据库文件
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.sqlite
+
+# ===================== 环境与密钥 =====================
+
+.env
+.env.*
+!.env.example
+
+# 本地真实数据配置（含隐私信息，每人不同）
+local_config.*
+config.local.*
+local.env
+wiki
+# ===================== OS / IDE =====================
+_tmp*
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

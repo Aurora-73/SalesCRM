@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIDO - AI极客工作助手</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-dark: #0d1117;
+            --bg-card: #161b22;
+            --neon-cyan: #00ffcc;
+            --neon-blue: #0088ff;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --terminal-bg: #010409;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* 网格背景 & 开场动画 */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: linear-gradient(180deg, rgba(13, 17, 23, 0.9) 0%, var(--bg-dark) 100%),
+                        linear-gradient(90deg, rgba(0, 255, 204, 0.03) 1px, transparent 1px),
+                        linear-gradient(rgba(0, 255, 204, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            overflow: hidden;
+        }
+        
+        .hero::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 255, 204, 0.15) 0%, transparent 60%);
+            transform: translate(-50%, -50%);
+            filter: blur(40px);
+            z-index: 0;
+            animation: pulseGlow 4s infinite alternate ease-in-out;
+        }
+        
+        @keyframes pulseGlow {
+            0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.8); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+        
+        .hero-content {
+            text-align: center;
+            z-index: 2;
+            padding: 2rem;
+            max-width: 900px;
+        }
+        
+        .hero h1 {
+            font-family: 'Fira Code', monospace;
+            font-size: 5rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 1rem;
+            letter-spacing: -2px;
+            text-shadow: 0 0 20px rgba(0, 255, 204, 0.4);
+            animation: slideUp 0.8s ease-out;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.5rem;
+            color: var(--neon-cyan);
+            margin-bottom: 1.5rem;
+            font-family: 'Fira Code', monospace;
+            animation: slideUp 0.8s ease-out 0.2s both;
+        }
+        
+        .hero .tagline {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 3rem;
+            animation: slideUp 0.8s ease-out 0.4s both;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 导航栏 */
+        .nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.2rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            background: rgba(13, 17, 23, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(0, 255, 204, 0.1);
+        }
+        
+        .nav-logo {
+            font-family: 'Fira Code', monospace;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        
+        .nav-logo span { color: var(--neon-cyan); }
+        
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+        
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--neon-cyan);
+        }
+        
+        /* 通用区块 */
+        .section {
+            padding: 6rem 3rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-title {
+            font-family: 'Fira Code', monospace;
+            font-size: 2.2rem;
+            color: #fff;
+            margin-bottom: 3rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title::before {
+            content: '>';
+            color: var(--neon-cyan);
+            margin-right: 15px;
+        }
+        
+        /* 痛点卡片 */
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 255, 204, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 4px; height: 100%;
+            background: linear-gradient(to bottom, var(--neon-cyan), var(--neon-blue));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .card:hover::before { opacity: 1; }
+        
+        .card h3 {
+            color: #fff;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        /* 终端预览 (核心亮点) */
+        .preview-section {
+            background: #090c10;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .terminal-mockup {
+            background: var(--terminal-bg);
+            border-radius: 10px;
+            border: 1px solid #30363d;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .term-header {
+            background: #161b22;
+            padding: 10px 15px;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .term-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot-r { background: #ff5f56; }
+        .dot-y { background: #ffbd2e; }
+        .dot-g { background: #27c93f; }
+        
+        .term-body {
+            padding: 20px;
+            font-size: 0.9rem;
+            color: #e6edf3;
+            min-height: 350px;
+        }
+        
+        .line { margin-bottom: 12px; display: flex; gap: 10px; }
+        .prompt { color: var(--neon-cyan); white-space: nowrap; }
+        .user-input { color: #fff; }
+        .sys-output { color: var(--text-muted); }
+        .success { color: #3fb950; }
+        .highlight { color: #a5d6ff; }
+        
+        /* 行动呼吁按钮 */
+        .cta-btn {
+            display: inline-block;
+            padding: 1rem 3rem;
+            background: transparent;
+            color: var(--neon-cyan);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cta-btn:hover {
+            background: rgba(0, 255, 204, 0.1);
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 4rem 2rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        /* 动画类 */
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.6s ease-out; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+    <nav class="nav">
+        <div class="nav-logo">AI<span>DO</span>_</div>
+        <div class="nav-links">
+            <a href="#painpoints">01.痛点</a>
+            <a href="#features">02.架构</a>
+            <a href="#terminal">03.终端交互</a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <h1>AIDO_</h1>
+            <p class="subtitle">AUTOMATED INTEGRATED DEVOPS</p>
+            <p class="tagline">专为极客打造的工作流中枢。用自然语言调度云端 VPS、部署 Docker 容器、编排本地 4090 算力流与 AI 视频推理，让繁杂基建自动化。</p>
+            <a href="#terminal" class="cta-btn mt-4">> 初始化系统</a>
+        </div>
+    </header>
+
+    <section id="painpoints" class="section reveal">
+        <h2 class="section-title">01/ 开发者痛点</h2>
+        <div class="grid-cards">
+            <div class="card">
+                <h3>[ 环境割裂 ]</h3>
+                <p>日常穿梭于云端海量节点与本地高配工作站之间。排查网络路由、调试代理分流规则极其耗费精力。</p>
+            </div>
+            <div class="card">
+                <h3>[ AI工作流冗长 ]</h3>
+                <p>部署大模型与视频生成框架依赖复杂，量化模型选择与 ComfyUI 节点调优门槛极高，缺乏统一中控大脑。</p>
+            </div>
+            <div class="card">
+                <h3>[ 脚本维护灾难 ]</h3>
+                <p>分散的 Python、Rust 运维脚本难以集中管理，一旦服务器环境变动，重构与联调成本巨大。</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="section reveal">
+        <h2 class="section-title">02/ 核心引擎架构</h2>
+        <div class="grid-cards">
+            <div class="card">
+                <h3>⚡ 自然语言转脚本</h3>
+                <p>内置智能代码生成模块，通过对话快速生成并安全执行 Go/Rust 高并发脚本与 Python 数据处理逻辑。</p>
+            </div>
+            <div class="card">
+                <h3>🐳 容器化全景管理</h3>
+                <p>自动接管 Docker 运行环境，一键排查 LiteLLM 等服务的端口映射、容器日志与连接异常。</p>
+            </div>
+            <div class="card">
+                <h3>🧠 异构算力调度</h3>
+                <p>无论是云端极简 NAT 节点，还是本地装配 RTX 4090 D / 5060 Ti 的图形工作站，指令下达即可极速调度资源。</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="terminal" class="preview-section reveal">
+        <div class="section">
+            <h2 class="section-title">03/ 沉浸式终端交互预览</h2>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">不再需要繁琐的控制面板。像在 IDE 里写代码一样，以极客的姿态接管一切。</p>
+            
+            <div class="terminal-mockup">
+                <div class="term-header">
+                    <div class="term-dot dot-r"></div>
+                    <div class="term-dot dot-y"></div>
+                    <div class="term-dot dot-g"></div>
+                </div>
+                <div class="term-body" id="typing-container">
+                    <div class="line">
+                        <span class="sys-output">AIDO System v1.0.4 - Initializing connection...</span>
+                    </div>
+                    <div class="line">
+                        <span class="success">[OK] Root access verified.</span>
+                    </div>
+                    <br>
+                    <div class="line">
+                        <span class="prompt">caogefu@aido:~ $</span>
+                        <span class="user-input">部署 LTX 视频生成流到本地 4090 工作站，并监控 VRAM。</span>
+                    </div>
+                    <div class="line">
+                        <span class="sys-output">> 分析指令：检测到本地环境包含 NVIDIA RTX 4090 D ...</span>
+                    </div>
+                    <div class="line">
+                        <span class="sys-output">> 正在拉取 ComfyUI 依赖图谱与 GGUF 量化权重...</span>
+                    </div>
+                    <div class="line">
+                        <span class="success">[SUCCESS] 工作流部署完成。当前显存占用：<span class="highlight">4.2GB / 24GB</span></span>
+                    </div>
+                    <br>
+                    <div class="line">
+                        <span class="prompt">caogefu@aido:~ $</span>
+                        <span class="user-input">帮我用 Rust 写一个针对内网 59 个 AP 节点的批量健康检查脚本。</span>
+                    </div>
+                    <div class="line">
+                        <span class="sys-output">> 正在生成并发轮询逻辑代码...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <h2 style="font-family: 'Fira Code'; color: #fff; margin-bottom: 1rem;">>>> READY_TO_DEPLOY?</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">把时间留给创造，把运维交给 AIDO。</p>
+        <a href="#" class="cta-btn">提交初赛 Demo 体验</a>
+    </footer>
+
+    <script>
+        // 滚动显示动画
+        const reveals = document.querySelectorAll('.reveal');
+        
+        function revealOnScroll() {
+            for (let i = 0; i < reveals.length; i++) {
+                let windowHeight = window.innerHeight;
+                let elementTop = reveals[i].getBoundingClientRect().top;
+                let elementVisible = 100;
+                
+                if (elementTop < windowHeight - elementVisible) {
+                    reveals[i].classList.add('active');
+                }
+            }
+        }
+        
+        window.addEventListener('scroll', revealOnScroll);
+        revealOnScroll(); // 页面加载时执行一次
+    </script>
+</body>
+</html>
