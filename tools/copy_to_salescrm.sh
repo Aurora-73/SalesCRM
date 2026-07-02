@@ -30,7 +30,7 @@ set -euo pipefail
 #
 # What is intentionally NOT copied:
 #   - data/                     private runtime database, facts, outputs, config tokens
-#   - docs/                     private/large wiki data; create docs/sales manually
+#   - docs/                     private/large wiki data; create docs/wiki manually
 #   - _reference/               upstream references
 #   - .git/.history/.pytest_cache/__pycache__
 
@@ -126,11 +126,8 @@ mkdir -p \
   "$TARGET/data/outputs/reports" \
   "$TARGET/data/outputs/rankings" \
   "$TARGET/data/input" \
-  "$TARGET/docs/sales/entities" \
-  "$TARGET/docs/sales/scenarios" \
-  "$TARGET/docs/sales/sources" \
-  "$TARGET/docs/sales/topics" \
-  "$TARGET/docs/sales/synthesis" \
+  "$TARGET/docs/wiki/entities" \
+  "$TARGET/docs/wiki/scenarios" \
   "$TARGET/plan"
 
 write_file "data/README.md" <<'EOF'
@@ -142,15 +139,14 @@ Do not copy private data here. Create a local config and sync/import
 SalesCRM data from the target environment.
 EOF
 
-write_file "docs/sales/README.md" <<'EOF'
-# Sales Knowledge Base
+write_file "docs/wiki/README.md" <<'EOF'
+# Sales Knowledge Base (OKF Format)
 
-Populate this directory with SalesCRM wiki pages:
+SalesCRM wiki pages in OKF (Open Knowledge Format) structure:
 
-- entities: SPIN, MEDDIC, Challenger Sale, value selling, objection handling
-- scenarios: price objection, no reply, competitor pressure, proposal timing
-- sources: sales books/course summaries
-- topics/synthesis: broader sales playbooks and comparisons
+- entities/: Core concepts, frameworks, and techniques (SPIN, MEDDIC, objection handling, etc.)
+- scenarios/: Situation-specific decision guides (price objection, no reply, competitor pressure, etc.)
+- index.md: Knowledge bundle root index
 EOF
 
 write_file "MIGRATION_TODO.md" <<'EOF'

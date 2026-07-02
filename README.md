@@ -22,5 +22,5 @@ SalesCRM/
 │   └── analyzers/   # 分析器
 ├── readme/          # 项目文档
 ├── data/            # 数据目录
-└── docs/sales/      # 销售知识库
+└── docs/wiki/       # 销售知识库（OKF格式）
 ```

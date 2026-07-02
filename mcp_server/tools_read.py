@@ -1,0 +1,461 @@
+"""MCP 只读工具函数（无装饰器，由 server.py 注册）。
+
+SalesCRM 版本：客户关系数据分析工具。
+术语：客户/商务关系/会面/意向。
+"""
+
+from typing import Optional
+
+from engine.tools import (
+    brief_data, chat_data, metrics, rank_data, status_data,
+    wiki_search_data, wiki_show,
+    timeline, signals, skill_search,
+    evidence, compare_analysis, weekly, moments_stats,
+    maintain_candidates, format_candidates,
+    events, check_keys,
+    contact, exclude, failure, sticker,
+    message_context_data, save_from_markdown as _save_from_markdown,
+    sync_moments as _sync_moments,
+)
+
+
+def person_brief(name: str) -> dict:
+    """获取客户简要信息。"""
+    try:
+        return brief_data(name)
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确，或先使用 sync 同步数据"}
+
+
+CHAT_MAX_RECENT = 500
+
+
+def person_chat(
+    name: str, recent: int = 30, keyword: Optional[str] = None,
+    from_date: Optional[str] = None, to_date: Optional[str] = None,
+    context_lines: int = 0,
+) -> dict:
+    """获取客户聊天记录。
+
+    什么时候用：需要查看与某客户的具体对话内容时。
+    返回什么：dict 含 messages 列表，每条消息含 id/sender_id/is_mine/timestamp/content。
+    边界是什么：recent 控制返回消息数量（硬上限 500，防止返回超限）；keyword 按关键词过滤（context_lines 仅在 keyword 模式下生效，控制匹配消息的上下文条数）；
+    from_date/to_date 按日期范围过滤（格式 YYYY-MM-DD）。
+    """
+    original_recent = recent
+    if recent <= 0 or recent > CHAT_MAX_RECENT:
+        recent = CHAT_MAX_RECENT
+    try:
+        result = chat_data(name, recent=recent, keyword=keyword,
+                           from_date=from_date, to_date=to_date,
+                           context_lines=context_lines)
+        if original_recent <= 0 or original_recent > CHAT_MAX_RECENT:
+            if isinstance(result, dict) and "data" in result:
+                result["data"]["truncated"] = True
+                result["data"]["original_recent"] = original_recent
+                result["data"]["applied_recent"] = recent
+                result["data"]["truncation_reason"] = f"recent={original_recent} 超出上限 {CHAT_MAX_RECENT}，已自动截断"
+        return result
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def person_metrics(name: str) -> dict:
+    """获取客户关系指标。"""
+    try:
+        result = metrics(name)
+        if isinstance(result, str):
+            return {"error": "PERSON_NOT_FOUND", "message": result, "suggestion": "请检查客户姓名是否正确"}
+        return result
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+def person_rank() -> dict:
+    """获取所有客户的商务热度排名。"""
+    try:
+        result = rank_data()
+        return result
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+def person_status(name: str) -> dict:
+    """获取客户状态概览。"""
+    try:
+        return status_data(name)
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def wiki_search(query: str, limit: int = 5) -> dict:
+    """搜索 Wiki 知识库（销售知识、技巧、场景应对策略）。"""
+    try:
+        return wiki_search_data(query, limit=limit)
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 Wiki 配置"}
+
+
+def wiki_read(path: str, max_chars: int = 8000) -> dict:
+    """读取 Wiki 页面完整正文。
+
+    什么时候用：wiki_search 找到感兴趣的知识点后，需要阅读完整内容时。
+    返回什么：dict 含 path/content/total_chars/truncated 字段。
+    边界是什么：path 是 wiki_search 返回的 path 字段；max_chars 控制返回长度，超过则截断。
+    """
+    try:
+        content = wiki_show(path, max_chars=max_chars)
+        return {"path": path, "content": content, "max_chars": max_chars}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 path 是否正确，应使用 wiki_search 返回的 path"}
+
+
+# ── Phase 2 P1: 只读工具 ──────────────────────────────────────
+
+
+def person_timeline(name: str, max_events: int = 30) -> dict:
+    """获取客户关系时间线。
+
+    什么时候用：需要查看客户关系发展的关键事件时间线时。
+    返回什么：dict 含 person_id/display_name/events 列表。
+    边界是什么：max_events 控制返回事件数量。
+    """
+    try:
+        return timeline(name, max_events=max_events)
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def person_signals(name: str) -> dict:
+    """获取信号详情（基础信号 + 操控信号 + 朋友圈联动信号）。
+
+    什么时候用：需要深入了解检测到的各类信号时。
+    返回什么：dict 含 person_id/display_name/basic_signals/manipulation_signals/moments_signals。
+    边界是什么：name 必填。
+    """
+    try:
+        return signals(name)
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def person_evidence(name: str, section: str = "all", since_date: Optional[str] = None) -> dict:
+    """获取事实档案（timeline/evaluations/notes/dates/all）。
+
+    什么时候用：需要查看已记录的客观事实（笔记、评价、会面记录等）时。
+    返回什么：dict 含 name/section/content/has_analysis 字段，content 为 Markdown 格式。
+    边界是什么：section 可选 all/timeline/evaluations/notes/dates；since_date 过滤起始日期。
+    分析内容不在事实档案中，请使用 person_save_analysis/person_compare 查看分析结论。
+    """
+    try:
+        result = evidence(name, section=section, since_date=since_date)
+        from pathlib import Path
+        from engine.config import ROOT_DIR
+        analysis_dir = ROOT_DIR / "data" / "outputs" / "analysis"
+        has_analysis = any(analysis_dir.glob(f"{name}*")) if analysis_dir.is_dir() else False
+        hint = ""
+        if not has_analysis:
+            hint = "\n\n---\n**提示**: 未找到分析记录。分析内容存储在 data/outputs/analysis/，请使用 person_save_analysis 保存分析，或 person_compare 对比历史分析。"
+        else:
+            hint = "\n\n---\n**提示**: 检测到已有分析记录。请使用 person_compare 查看分析对比，或 person_save_analysis 更新分析。"
+        return {
+            "name": name,
+            "section": section,
+            "content": result + hint,
+            "has_analysis": has_analysis,
+        }
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def skill_search_tool(query: str, limit: int = 5) -> dict:
+    """搜索技能包。
+
+    什么时候用：需要查找可用的分析技能和方法论时。
+    返回什么：dict 含 query/total_results/results 列表。
+    边界是什么：query 为搜索关键词，limit 控制返回数量。
+    """
+    try:
+        return skill_search(query, limit=limit)
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查查询参数"}
+
+
+def person_compare(name: str) -> dict:
+    """对比 latest.yaml 和 previous.yaml 的变化趋势。
+
+    什么时候用：需要了解一个客户与上次分析相比的变化时。
+    返回什么：dict 含 name/content 字段，content 为对比分析 Markdown。
+    边界是什么：需要至少两次 save_analysis 才有对比数据。
+    """
+    try:
+        result = compare_analysis(name)
+        return {"name": name, "content": result}
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def weekly_report(deep: bool = False) -> dict:
+    """生成周报。
+
+    什么时候用：需要生成本周客户维护总结报告时。
+    返回什么：dict 含 content 字段，content 为周报 Markdown。
+    边界是什么：deep=True 时生成深度报告（更耗时）。
+    """
+    try:
+        result = weekly(deep=deep)
+        return {"content": result, "deep": deep}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+def person_moments_stats(name: str) -> dict:
+    """获取朋友圈互动统计。
+
+    什么时候用：需要分析朋友圈互动频率和模式时。
+    返回什么：dict 含朋友圈互动统计数据。
+    边界是什么：name 必填。
+    """
+    try:
+        result = moments_stats(name)
+        if isinstance(result, str):
+            return {"error": "PERSON_NOT_FOUND", "message": result, "suggestion": "请检查客户姓名是否正确"}
+        return result
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+_REASON_PRIORITY = {
+    "兴趣下降": "高",
+    "意向未推进": "高",
+    "高潜力未投入": "中",
+    "需关注": "低",
+}
+
+_REASON_ACTION = {
+    "兴趣下降": "重新建立联系，分享行业资讯，避免关系冷却",
+    "意向未推进": "推进关系，发起约见或方案展示，抓住意向期",
+    "高潜力未投入": "主动联系，投入更多关注，测试对方反应",
+    "需关注": "保持联系，观察信号变化，避免过度投入",
+}
+
+
+def maintain_list(limit: int = 10) -> dict:
+    """获取需要维持关系的候选人列表。
+
+    什么时候用：每周主动维护客户关系时，筛选需要联系的人。
+    返回什么：dict 含 candidates 列表和 formatted Markdown。
+    边界是什么：limit 控制返回候选人数。
+    """
+    try:
+        candidates = maintain_candidates(max_people=limit)
+        if isinstance(candidates, str):
+            return {"error": "TOOL_ERROR", "message": candidates, "suggestion": "请检查数据库连接"}
+        formatted = format_candidates(candidates)
+        return {
+            "candidates": [
+                {
+                    "name": c.name,
+                    "rank": c.rank,
+                    "priority": _REASON_PRIORITY.get(c.reason, "低"),
+                    "reason": c.reason,
+                    "signal_level": c.signal_level,
+                    "recent_days": c.recent_days,
+                    "composite": c.composite,
+                    "trend": c.trend,
+                    "interaction_pattern": c.interaction_pattern,
+                    "last_msg_summary": c.last_msg_summary,
+                    "suggested_action": _REASON_ACTION.get(c.reason, "保持联系，观察信号变化"),
+                }
+                for c in candidates
+            ],
+            "formatted": formatted,
+        }
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+# ── Phase 2 P1: events 拆分 ───────────────────────────────────
+
+
+def events_scan(name: str, disconnect_days: int = 7) -> dict:
+    """扫描关系事件（只读，不写入）。
+
+    什么时候用：需要检测断联、恢复、频率变化等关系事件时。
+    返回什么：dict 含 name/content 字段，content 为检测结果 Markdown。
+    边界是什么：scan=False 只展示不写入；disconnect_days 控制断联判定阈值。
+    """
+    try:
+        result = events(name, scan=False, disconnect_days=disconnect_days)
+        return {"name": name, "content": result, "written": False}
+    except Exception as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+# ── Phase 2 P1: system_sync + wcd_status ─────────────────────
+
+
+def system_sync(mode: str = "incremental", meta_only: bool = False) -> dict:
+    """全量/增量数据同步。
+
+    什么时候用：需要同步所有客户的微信数据时。⚠️ 可能耗时 1-5 分钟。
+    返回什么：dict 含 success/message 字段。
+    边界是什么：mode 默认 incremental（快），full 全量（慢）；meta_only 只同步联系人元数据。
+    需要 WCD 后端运行中。
+    """
+    from engine.tools import sync as _sync
+    try:
+        result = _sync(mode=mode, meta_only=meta_only)
+        return {"success": True, "message": result, "mode": mode}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "确保 WCD 后端已启动"}
+
+
+def wcd_status() -> dict:
+    """检查 WCD 后端在线状态 + 密钥缓存状态，给出操作建议。
+
+    什么时候用：同步前确认 WCD 后端是否在线、密钥是否可用。
+    返回什么：dict 含 online/keys_cached/message/suggestion 字段。
+    边界是什么：只读检查，不启动进程、不获取密钥、不修改任何状态。
+    密钥安全：绝不自动调用 fetch_keys（封号风险），密钥失效时仅提示用户手动处理。
+    """
+    try:
+        from engine.importers.wcd_client import WCDClient
+        from engine.agent.core import _get_conn
+        conn, config = _get_conn()
+        try:
+            if config.weflow.backend != "wcd":
+                return {
+                    "online": False,
+                    "backend": config.weflow.backend,
+                    "message": f"当前后端是 {config.weflow.backend}，非 WCD",
+                    "suggestion": "无需 WCD 检查",
+                }
+            client = WCDClient(
+                base_url=config.weflow.base_url,
+                decrypted_db_dir=config.weflow.decrypted_db_dir or None,
+            )
+            online = client.health()
+            keys = client.check_cached_keys()
+            keys_cached = keys.get("cached", False)
+
+            if online and keys_cached:
+                return {
+                    "online": True,
+                    "keys_cached": True,
+                    "message": "WCD 后端在线，密钥已缓存，可以正常同步",
+                    "suggestion": None,
+                }
+            if online and not keys_cached:
+                return {
+                    "online": True,
+                    "keys_cached": False,
+                    "message": "WCD 后端在线，但密钥未缓存",
+                    "suggestion": "请手动获取密钥并保存到 account_keys.json（注意封号风险，勿频繁获取）",
+                }
+            if not online and keys_cached:
+                return {
+                    "online": False,
+                    "keys_cached": True,
+                    "message": "WCD 后端未启动，但密钥已缓存",
+                    "suggestion": "请手动启动 WCD 后端（密钥会自动加载），启动后即可同步",
+                }
+            return {
+                "online": False,
+                "keys_cached": False,
+                "message": "WCD 后端未启动，密钥也未缓存",
+                "suggestion": "请先手动获取密钥保存到 account_keys.json（注意封号风险），再启动 WCD 后端",
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WCD 配置"}
+
+
+# ── Phase 2 P2: contact/sticker/exclude/failure 拆分 ─────────
+
+
+def contact_search(query: str) -> dict:
+    """搜索联系人信息。
+
+    什么时候用：需要查找联系人、查看身份目录信息时。
+    返回什么：dict 含 query/content 字段，content 为联系人信息 Markdown。
+    边界是什么：query 支持姓名、别名、wxid 多种方式。
+    """
+    try:
+        result = contact(query, action="search")
+        return {"query": query, "content": result}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查查询参数"}
+
+
+def sticker_scan(private_only: bool = True) -> dict:
+    """扫描聊天中的贴纸表情（⚠️ 可能耗时）。
+
+    什么时候用：需要建立贴纸词典、分析贴纸使用模式前先扫描。
+    返回什么：dict 含 content 字段，content 为扫描结果摘要。
+    边界是什么：private_only=True 只扫描私聊。
+    """
+    try:
+        result = sticker(action="scan", private_only=private_only)
+        return {"content": result, "private_only": private_only}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+def sticker_list(limit: int = 30, unlabeled: bool = False, min_freq: int = 1) -> dict:
+    """列出贴纸词典。
+
+    什么时候用：需要查看已扫描的贴纸列表和标注时。
+    返回什么：dict 含 content 字段，content 为贴纸列表 Markdown。
+    边界是什么：unlabeled=True 只看未标注的；min_freq 过滤最低频率。
+    """
+    try:
+        result = sticker(action="list", limit=limit, unlabeled=unlabeled, min_freq=min_freq)
+        return {"content": result, "limit": limit, "unlabeled": unlabeled}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请先运行 sticker_scan"}
+
+
+def exclude_list() -> dict:
+    """查看排除列表（硬排除 + 标签排除 + 手动排除）。
+
+    什么时候用：需要了解哪些联系人被排除出排名及原因时。
+    返回什么：dict 含 content 字段，content 为排除列表 Markdown。
+    边界是什么：只读，不修改排除状态。
+    """
+    try:
+        result = exclude(action="list")
+        return {"content": result}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
+def failure_list() -> dict:
+    """查看所有失败案例。
+
+    什么时候用：需要回顾历史失败教训、避免重蹈覆辙时。
+    返回什么：dict 含 content 字段，content 为失败案例列表 Markdown。
+    边界是什么：只读。
+    """
+    try:
+        result = failure(action="list")
+        return {"content": result}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据文件"}
+
+
+# ── Phase 2 P2: message_context ──────────────────────────────
+
+
+def message_context(message_ids: list[str], before: int = 20, after: int = 20) -> dict:
+    """根据消息 ID 获取前后上下文消息。
+
+    什么时候用：需要查看某条消息的上下文（前后对话）时。
+    返回什么：dict 含 messages 列表及元信息。
+    边界是什么：message_ids 是消息 ID 列表；before/after 控制上下文条数；不跨会话。
+    """
+    try:
+        return message_context_data(message_ids, before=before, after=after)
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 message_ids 参数"}

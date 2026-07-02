@@ -1,14 +1,16 @@
-"""事件流检测器。
+"""事件流 / 活动时间线检测器。
 
 从聊天记录中自动提取关键关系事件，无需 LLM。
+作为联系人的"关系时间线"，比原始消息历史更有价值。
 """
 
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Optional
 
 from engine.identity import IdentityPerson
 
@@ -21,10 +23,44 @@ class EventType(Enum):
     RECONNECT = "恢复联系"
     FIRST_DATE = "首次约见"
 
-    # 销售特有事件
+    SIGNAL_LEVEL_UP = "意向等级提升"
+    SIGNAL_LEVEL_DOWN = "意向等级下降"
+
+    INFO_UPDATE = "档案信息更新"
+    MILESTONE = "关系里程碑"
+
     REQUIREMENT_CONFIRM = "需求确认"
     DECISION_MAKER_APPEAR = "决策人出现"
     PROPOSAL_SENT = "报价发送"
+    FIRST_MEETING = "首次会面"
+    DEAL_CLOSE = "成交"
+
+
+class TimelineCategory(Enum):
+    MILESTONE = "里程碑"
+    COMMUNICATION = "沟通动态"
+    SIGNAL = "信号变化"
+    INFO = "信息更新"
+    SALES = "销售进展"
+
+
+EVENT_CATEGORY_MAP = {
+    EventType.FIRST_CHAT: TimelineCategory.MILESTONE,
+    EventType.FIRST_DATE: TimelineCategory.MILESTONE,
+    EventType.MILESTONE: TimelineCategory.MILESTONE,
+    EventType.FIRST_MEETING: TimelineCategory.MILESTONE,
+    EventType.DEAL_CLOSE: TimelineCategory.MILESTONE,
+    EventType.FREQUENCY_UP: TimelineCategory.COMMUNICATION,
+    EventType.FREQUENCY_DOWN: TimelineCategory.COMMUNICATION,
+    EventType.DISCONNECT: TimelineCategory.COMMUNICATION,
+    EventType.RECONNECT: TimelineCategory.COMMUNICATION,
+    EventType.SIGNAL_LEVEL_UP: TimelineCategory.SIGNAL,
+    EventType.SIGNAL_LEVEL_DOWN: TimelineCategory.SIGNAL,
+    EventType.INFO_UPDATE: TimelineCategory.INFO,
+    EventType.REQUIREMENT_CONFIRM: TimelineCategory.SALES,
+    EventType.DECISION_MAKER_APPEAR: TimelineCategory.SALES,
+    EventType.PROPOSAL_SENT: TimelineCategory.SALES,
+}
 
 
 @dataclass
@@ -32,7 +68,19 @@ class Event:
     event_type: EventType
     date: str              # YYYY-MM-DD
     detail: str
-    confidence: float      # 0-1
+    confidence: float = 1.0
+    category: TimelineCategory = TimelineCategory.COMMUNICATION
+    metadata: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "event_type": self.event_type.value,
+            "date": self.date,
+            "detail": self.detail,
+            "confidence": self.confidence,
+            "category": self.category.value,
+            "metadata": self.metadata,
+        }
 
 
 def detect_events(
@@ -218,7 +266,141 @@ def detect_events(
 
     # 按日期排序
     events.sort(key=lambda e: e.date)
+
+    # 自动填充 category
+    for e in events:
+        e.category = EVENT_CATEGORY_MAP.get(e.event_type, TimelineCategory.COMMUNICATION)
+
     return events
+
+
+def detect_milestones(
+    conn: sqlite3.Connection,
+    person: IdentityPerson,
+) -> list[Event]:
+    """检测关系里程碑：认识 N 天、消息数破千等。"""
+    wxids = [a.wxid for a in person.accounts]
+    if not wxids:
+        return []
+
+    events: list[Event] = []
+
+    placeholders = ",".join("?" for _ in wxids)
+    row = conn.execute(
+        f"""
+        SELECT MIN(timestamp) as first_ts,
+               COUNT(*) as total_count,
+               MAX(timestamp) as last_ts
+        FROM messages
+        WHERE conversation_id IN ({placeholders})
+          AND type = 1
+        """,
+        tuple(wxids),
+    ).fetchone()
+
+    if not row or not row["first_ts"]:
+        return []
+
+    first_ts = row["first_ts"]
+    total_count = row["total_count"]
+    first_date = datetime.fromtimestamp(first_ts)
+
+    # 认识 100 / 365 / 1000 天里程碑
+    now = datetime.now()
+    milestones_days = [100, 365, 1000]
+    for days in milestones_days:
+        milestone_date = first_date + timedelta(days=days)
+        if milestone_date <= now:
+            events.append(Event(
+                event_type=EventType.MILESTONE,
+                date=milestone_date.strftime("%Y-%m-%d"),
+                detail=f"认识 {days} 天",
+                confidence=1.0,
+                category=TimelineCategory.MILESTONE,
+                metadata={"milestone_type": "days", "days": days},
+            ))
+
+    # 消息数破千 / 破万里程碑
+    milestones_count = [100, 500, 1000, 5000, 10000]
+    for count_target in milestones_count:
+        if total_count >= count_target:
+            # 找到第 N 条消息的日期
+            nth_row = conn.execute(
+                f"""
+                SELECT timestamp FROM messages
+                WHERE conversation_id IN ({placeholders})
+                  AND type = 1
+                ORDER BY timestamp ASC
+                LIMIT 1 OFFSET ?
+                """,
+                tuple(wxids) + (count_target - 1,),
+            ).fetchone()
+            if nth_row:
+                nth_date = datetime.fromtimestamp(nth_row["timestamp"])
+                events.append(Event(
+                    event_type=EventType.MILESTONE,
+                    date=nth_date.strftime("%Y-%m-%d"),
+                    detail=f"消息数突破 {count_target} 条",
+                    confidence=1.0,
+                    category=TimelineCategory.MILESTONE,
+                    metadata={"milestone_type": "message_count", "count": count_target},
+                ))
+
+    events.sort(key=lambda e: e.date)
+    return events
+
+
+def compute_timeline(
+    conn: sqlite3.Connection,
+    person: IdentityPerson,
+    include_milestones: bool = True,
+    categories: Optional[list[TimelineCategory]] = None,
+    max_events: int = 50,
+) -> list[Event]:
+    """生成完整的关系时间线。
+
+    整合所有事件类型，按时间排序，返回联系人的"关系时间线"。
+
+    Args:
+        conn: SQLite 连接
+        person: 联系人身份
+        include_milestones: 是否包含里程碑事件
+        categories: 只返回指定分类的事件（None 表示全部）
+        max_events: 最大返回事件数（按时间倒序取最新的）
+
+    Returns:
+        按时间正序排列的事件列表
+    """
+    all_events: list[Event] = []
+
+    # 基础事件
+    all_events.extend(detect_events(conn, person))
+
+    # 里程碑
+    if include_milestones:
+        all_events.extend(detect_milestones(conn, person))
+
+    # 按分类过滤
+    if categories:
+        cat_set = set(categories)
+        all_events = [e for e in all_events if e.category in cat_set]
+
+    # 按时间排序（倒序，取最新的）
+    all_events.sort(key=lambda e: e.date, reverse=True)
+
+    # 限制数量
+    if max_events and len(all_events) > max_events:
+        all_events = all_events[:max_events]
+
+    # 重新按正序排列
+    all_events.sort(key=lambda e: e.date)
+
+    return all_events
+
+
+def timeline_to_dict(events: list[Event]) -> list[dict]:
+    """将时间线事件列表转为可序列化的 dict 列表。"""
+    return [e.to_dict() for e in events]
 
 
 def format_events(events: list[Event]) -> str:
@@ -229,5 +411,35 @@ def format_events(events: list[Event]) -> str:
     lines = []
     for e in events:
         conf = f" ({e.confidence:.0%})" if e.confidence < 1.0 else ""
-        lines.append(f"- [{e.date}] {e.event_type.value}{conf}: {e.detail}")
+        cat = f"[{e.category.value}] " if e.category != TimelineCategory.COMMUNICATION else ""
+        lines.append(f"- [{e.date}] {cat}{e.event_type.value}{conf}: {e.detail}")
+    return "\n".join(lines)
+
+
+def format_timeline(events: list[Event], group_by_month: bool = True) -> str:
+    """格式化时间线为可读性更好的文本，支持按月分组。"""
+    if not events:
+        return "(暂无时间线事件)"
+
+    if not group_by_month:
+        return format_events(events)
+
+    # 按月分组
+    months: dict[str, list[Event]] = {}
+    for e in events:
+        month = e.date[:7]  # YYYY-MM
+        if month not in months:
+            months[month] = []
+        months[month].append(e)
+
+    lines = []
+    for month in sorted(months.keys(), reverse=True):
+        month_events = months[month]
+        lines.append(f"## {month}（{len(month_events)} 件）")
+        for e in month_events:
+            conf = f" ({e.confidence:.0%})" if e.confidence < 1.0 else ""
+            cat = f"[{e.category.value}] " if e.category != TimelineCategory.COMMUNICATION else ""
+            lines.append(f"- {e.date[5:]} {cat}{e.event_type.value}{conf}: {e.detail}")
+        lines.append("")
+
     return "\n".join(lines)

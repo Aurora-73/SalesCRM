@@ -13,7 +13,7 @@
 | `stage.py` | 118 | `Stage`, `StageState`, `StageOverride`, `EvidenceEntry` |
 | `event.py` | 40 | `Event` |
 | `failure.py` | 77 | `FailureCase`, `FailurePattern` |
-| `profile.py` | 72 | `Profile`（继承 EntityBase） |
+| `profile.py` | ~90 | `Profile`（继承 EntityBase，支持自定义字段） |
 | `strategy.py` | 71 | `Strategy`, `Action`, `Risk` |
 | `evaluation.py` | 54 | `Evaluation`, `TimelineEntry` |
 | `date_review.py` | 54 | `DateReview` |
@@ -158,6 +158,56 @@ class Event:
     date: str         # "2026-06-01"
     detail: str       # 描述
     metadata: dict    # 附加数据
+```
+
+## Profile（联系人档案）
+
+联系人基础档案，继承自 `EntityBase`，支持 YAML 序列化。
+
+```python
+@dataclass
+class Profile(EntityBase):
+    name: str = ""
+    wxid: str = ""
+    wechat_id: str = ""
+    nickname: str = ""
+    remark: str = ""
+    tags: list[str] = field(default_factory=list)
+    description: str = ""
+    added_date: str = ""
+    age: int | None = None
+    occupation: str = ""
+
+    custom_fields: dict[str, str] = field(default_factory=dict)
+```
+
+### 自定义字段（custom_fields）
+
+支持任意键值对的扩展字段，用于存储项目特有、不想硬编码到模型中的数据。
+
+```python
+# 设置自定义字段
+profile.set_custom("company", "ABC科技")
+profile.set_custom("position", "产品经理")
+
+# 获取自定义字段
+company = profile.get_custom("company")       # "ABC科技"
+unknown = profile.get_custom("not_exist")      # ""
+unknown2 = profile.get_custom("not_exist", "默认值")  # "默认值"
+
+# 删除自定义字段
+profile.remove_custom("company")
+```
+
+**YAML 序列化规则**：
+- `custom_fields` 非空时才会出现在 YAML 中
+- 旧版 YAML 没有 custom_fields 字段，加载时默认为空 dict
+- 完全向后兼容
+
+### 从微信同步创建
+
+```python
+profile = Profile.from_wechat_row(row)  # 从 contacts 表行创建
 ```
 
 ## FailureCase（失败案例）

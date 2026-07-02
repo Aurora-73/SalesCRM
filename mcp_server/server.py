@@ -1,0 +1,396 @@
+"""MCP 服务器入口。
+
+使用 FastMCP 在 stdio 上提供工具服务。
+SalesCRM 版本：54 个工具（24 只读 + 15 写入 + 15 公式）。
+"""
+
+import sys
+
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stdin.reconfigure(encoding='utf-8')
+    except (AttributeError, ValueError):
+        # stdin 可能在测试环境下被替换（DontReadFromInput），忽略
+        pass
+
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+from fastmcp import FastMCP
+
+from mcp_server import tools_read, tools_write, tools_formula, tools_guide
+
+mcp = FastMCP("SalesCRM")
+
+# ── 注册 guide 工具（使用指南和工作流文档）──────────────────────
+
+mcp.tool(
+    name="guide",
+    description="获取 SalesCRM MCP 使用指南和工作流文档。Agent 在不确定操作流程时调用。"
+               "主题：getting-started（快速入门）/ workflow/analysis（分析流程）/ "
+               "report-template（报告模板）/ methodology（方法论）/ "
+               "rules/evidence（事实写入规则）/ rules/permissions（权限规范）/ "
+               "rules/reply（回复构造规则）/ workflow/maintain（客户维护）/ "
+               "reference/sync（同步策略）/ reference/formula（公式指南）/ "
+               "reference/stickers（贴纸系统）",
+    annotations={"readOnlyHint": True},
+)(tools_guide.guide_func)
+
+# ── Phase 1: 核心只读工具（6 个）──────────────────────────────
+
+mcp.tool(
+    name="person_brief",
+    description="获取客户简要信息（身份/消息统计/指标/事件/信号/最近消息/Wiki推荐）。⚠️调此工具前必须先调 person_sync 同步最新消息",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_brief)
+
+mcp.tool(
+    name="person_chat",
+    description="获取客户聊天记录（按日期分组，已标注'我'/'对方'名字）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_chat)
+
+mcp.tool(
+    name="person_metrics",
+    description="获取客户关系指标（回复率、回复速度、情绪评分等）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_metrics)
+
+mcp.tool(
+    name="person_rank",
+    description="获取所有客户的商务热度排名",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_rank)
+
+mcp.tool(
+    name="person_status",
+    description="获取客户状态概览（精简版指标，快速了解当前状态）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_status)
+
+mcp.tool(
+    name="wiki_search",
+    description="搜索 Wiki 知识库（销售知识、技巧、场景应对策略）",
+    annotations={"readOnlyHint": True},
+)(tools_read.wiki_search)
+
+# ── Phase 2 P0: wiki_read ────────────────────────────────────
+
+mcp.tool(
+    name="wiki_read",
+    description="读取 Wiki 页面完整正文（wiki_search 找到路径后用此工具读全文）",
+    annotations={"readOnlyHint": True},
+)(tools_read.wiki_read)
+
+# ── Phase 1: 写入工具（2 个）──────────────────────────────────
+
+mcp.tool(
+    name="person_note",
+    description="添加客户备注到事实档案",
+)(tools_write.person_note)
+
+mcp.tool(
+    name="person_date_record",
+    description="记录会面信息",
+)(tools_write.person_date_record)
+
+# ── Phase 2 P0: sync_person + save_analysis ──────────────────
+
+mcp.tool(
+    name="person_sync",
+    description="⚠️【分析前置·必须调用】增量同步单个客户最新消息。分析任何客户之前必须先调此工具，否则看到的是旧数据。"
+               "一般几秒完成。如果联系人搜不到，改用 system_sync(meta_only=True)",
+)(tools_write.person_sync)
+
+mcp.tool(
+    name="person_save_analysis",
+    description="【可选】保存结构化分析到 YAML（用于 person_compare 对比）。旧版本自动转为 previous。"
+               "如需保存完整 Markdown 报告请用 save_from_markdown。"
+               "参数：stage（阶段）/ confidence（置信度 0-1）/ reasoning（推理过程）/ diagnosis（诊断）/ "
+               "strategy（策略）/ risks（风险列表）/ signals（信号列表）/ "
+               "evidence_refs（证据引用: message_id+quote+note）/ metric_snapshot（指标快照）/ data_window（数据窗口）",
+)(tools_write.person_save_analysis)
+
+# ── Phase 2 P1: 只读工具（10 个）──────────────────────────────
+
+mcp.tool(
+    name="person_timeline",
+    description="获取客户关系时间线（关键事件按时间排列）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_timeline)
+
+mcp.tool(
+    name="person_signals",
+    description="获取信号详情（基础信号 + 操控信号 + 朋友圈联动信号）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_signals)
+
+mcp.tool(
+    name="person_evidence",
+    description="获取事实档案（已记录的笔记、评价、会面等客观事实）",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_evidence)
+
+mcp.tool(
+    name="skill_search",
+    description="搜索技能包（分析方法论和技能）",
+    annotations={"readOnlyHint": True},
+)(tools_read.skill_search_tool)
+
+mcp.tool(
+    name="person_compare",
+    description="对比 latest 和 previous 分析的变化趋势",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_compare)
+
+mcp.tool(
+    name="weekly_report",
+    description="生成周报（本周客户维护总结）",
+    annotations={"readOnlyHint": True},
+)(tools_read.weekly_report)
+
+mcp.tool(
+    name="person_moments_stats",
+    description="获取朋友圈互动统计",
+    annotations={"readOnlyHint": True},
+)(tools_read.person_moments_stats)
+
+mcp.tool(
+    name="maintain_list",
+    description="获取需要维持关系的候选人列表。拿结果后对每人调 person_brief/person_chat/person_metrics 获取详情，输出具体可发送的消息。详细流程见 guide('workflow/maintain')",
+    annotations={"readOnlyHint": True},
+)(tools_read.maintain_list)
+
+mcp.tool(
+    name="events_scan",
+    description="扫描关系事件（只读，不写入）",
+    annotations={"readOnlyHint": True},
+)(tools_read.events_scan)
+
+mcp.tool(
+    name="wcd_status",
+    description="检查 WCD 后端在线状态 + 密钥缓存状态（只读，不启动进程、不获取密钥）",
+    annotations={"readOnlyHint": True},
+)(tools_read.wcd_status)
+
+# ── Phase 2 P1: events 拆分 + 同步 + 评价（3 个写入）──────────
+
+mcp.tool(
+    name="events_save",
+    description="⚠️【先扫后写】检测并写入关系事件到事实档案。必须先调 events_scan 展示检测结果，用户确认后再调本工具写入。不可跳过 scan 步骤",
+)(tools_write.events_save)
+
+mcp.tool(
+    name="person_evaluate",
+    description="添加主观评价到事实档案（⚠️概念上属于分析归档，优先级低于客观事实）。Agent 读取时应保持批判性，不能与 note/date/events 的客观事实同等对待",
+)(tools_write.person_evaluate)
+
+mcp.tool(
+    name="system_sync",
+    description="全量/增量数据同步（⚠️ 可能耗时 1-5 分钟，需 WCD 后端运行）",
+)(tools_read.system_sync)
+
+# ── Phase 2 P2: 只读工具拆分（6 个）──────────────────────────
+
+mcp.tool(
+    name="contact_search",
+    description="搜索联系人信息（身份目录查询）",
+    annotations={"readOnlyHint": True},
+)(tools_read.contact_search)
+
+mcp.tool(
+    name="sticker_scan",
+    description="扫描聊天中的贴纸表情（⚠️ 可能耗时）",
+    annotations={"readOnlyHint": True},
+)(tools_read.sticker_scan)
+
+mcp.tool(
+    name="sticker_list",
+    description="列出贴纸词典",
+    annotations={"readOnlyHint": True},
+)(tools_read.sticker_list)
+
+mcp.tool(
+    name="exclude_list",
+    description="查看排除列表（硬排除 + 标签排除 + 手动排除）",
+    annotations={"readOnlyHint": True},
+)(tools_read.exclude_list)
+
+mcp.tool(
+    name="failure_list",
+    description="查看所有失败案例",
+    annotations={"readOnlyHint": True},
+)(tools_read.failure_list)
+
+mcp.tool(
+    name="message_context",
+    description="根据消息 ID 获取前后上下文消息（不跨会话）",
+    annotations={"readOnlyHint": True},
+)(tools_read.message_context)
+
+# ── Phase 2 P2: 写入工具拆分（8 个）──────────────────────────
+
+mcp.tool(
+    name="contact_alias",
+    description="为联系人添加别名",
+)(tools_write.contact_alias)
+
+mcp.tool(
+    name="contact_merge",
+    description="⚠️【必须确认】合并两个联系人（不可逆！source 的所有 account 和 alias 转移到 target，source 记录被删除）。执行前必须征得用户明确同意",
+)(tools_write.contact_merge)
+
+mcp.tool(
+    name="sticker_label",
+    description="标注贴纸含义（情绪、内容类型）",
+)(tools_write.sticker_label)
+
+mcp.tool(
+    name="exclude_add",
+    description="将联系人加入手动排除列表",
+)(tools_write.exclude_add)
+
+mcp.tool(
+    name="exclude_remove",
+    description="将联系人从手动排除列表移除",
+)(tools_write.exclude_remove)
+
+mcp.tool(
+    name="failure_add",
+    description="记录失败案例（客户关系结束后记录教训）",
+)(tools_write.failure_add)
+
+mcp.tool(
+    name="save_from_markdown",
+    description="⚠️【分析完成·必须调用】保存完整 Markdown 分析报告。分析完成后必须调用，否则历史分析无法追溯、personal_patterns 无法累积。"
+               "建议先用 guide('report-template') 获取报告模板。数据写入 data/outputs/analysis/<name>/latest.md",
+)(tools_write.save_from_markdown_tool)
+
+mcp.tool(
+    name="sync_moments",
+    description="同步朋友圈互动到事实档案",
+)(tools_write.sync_moments_tool)
+
+# ── Phase 3 P3: 战态分析公式（9 个纯计算函数）─────────────────
+
+mcp.tool(
+    name="formula_get_params",
+    description="【辅助参考】获取战态公式参数（从数据库自动计算分析所需参数）。先调此工具获取自动参数，manual 参数需自行判断",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_get_params)
+
+mcp.tool(
+    name="formula_calc_ivi",
+    description="【辅助参考·核验而非套用】计算 IVI（意图真实度）。阈值（>1.0真实意向，<0.5敷衍）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数（Pface 等）需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_ivi)
+
+mcp.tool(
+    name="formula_calc_spe",
+    description="【辅助参考·核验而非套用】计算 SPE（社交势能）。阈值（0.8-1.5健康，<0.6红线）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_spe)
+
+mcp.tool(
+    name="formula_calc_ews",
+    description="【辅助参考·核验而非套用】计算 EWS（推进窗口期）。阈值（>0.8出击，<0.3关闭）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_ews)
+
+mcp.tool(
+    name="formula_calc_is",
+    description="【辅助参考·核验而非套用】计算 IS（真实合作度）。阈值（>0.5高合作度）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_is)
+
+mcp.tool(
+    name="formula_calc_gap_effect",
+    description="【辅助参考·核验而非套用】计算 Gap_Effect（情绪落差刺激）。结果仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_gap_effect)
+
+mcp.tool(
+    name="formula_calc_eev",
+    description="【辅助参考·核验而非套用】计算 EEV（推进期望值）。阈值（>0.3值得出击）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_eev)
+
+mcp.tool(
+    name="formula_calc_cs",
+    description="【辅助参考·核验而非套用】计算 CS（矛盾演化状态）。阈值（>0欲望占主导）仅是参考视角，不是裁判。"
+               "先调 formula_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_cs)
+
+mcp.tool(
+    name="formula_calc_action",
+    description="【辅助参考·核验而非套用】终极行动决策 — 基于 IVI/SPE/EWS 的策略分发（推进/拉扯/重置/维持）。"
+               "参考视角，不是裁判。结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.formula_calc_action)
+
+# ── Phase 3 P3: 销售决策公式（6 个，SalesCRM 独有）────────────
+
+mcp.tool(
+    name="sales_get_params",
+    description="【辅助参考】获取销售公式参数（从数据库自动计算 BQ/BSP/BWS/PV 所需参数）。先调此工具获取自动参数，manual 参数需自行判断",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_get_params)
+
+mcp.tool(
+    name="sales_calc_bq",
+    description="【辅助参考·核验而非套用】计算 BQ（购买意愿真实度）。阈值（>1.0强烈信号，<0.5敷衍）仅是参考视角，不是裁判。"
+               "先调 sales_get_params 获取自动参数，manual 参数（Pface 等）需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_calc_bq)
+
+mcp.tool(
+    name="sales_calc_bsp",
+    description="【辅助参考·核验而非套用】计算 BSP（商务势能）。阈值（0.8-1.5健康，<0.6高危低位）仅是参考视角，不是裁判。"
+               "先调 sales_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_calc_bsp)
+
+mcp.tool(
+    name="sales_calc_bws",
+    description="【辅助参考·核验而非套用】计算 BWS（购买意向期）。阈值（>0.8出击，<0.3关闭）仅是参考视角，不是裁判。"
+               "先调 sales_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_calc_bws)
+
+mcp.tool(
+    name="sales_calc_pv",
+    description="【辅助参考·核验而非套用】计算 PV（成交期望值）。阈值（>0.3值得推进）仅是参考视角，不是裁判。"
+               "先调 sales_get_params 获取自动参数，manual 参数需自行判断。"
+               "结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_calc_pv)
+
+mcp.tool(
+    name="sales_calc_action",
+    description="【辅助参考·核验而非套用】销售行动决策 — 基于 BQ/BSP/BWS 的策略分发（bargain/push/nurture/reset/maintain）。"
+               "参考视角，不是裁判。结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
+    annotations={"readOnlyHint": True},
+)(tools_formula.sales_calc_action)
+
+if __name__ == "__main__":
+    mcp.run()

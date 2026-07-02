@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from engine.agent.core import _get_conn
-from engine.analyzers.metrics import compute_metrics_for_contact, get_all_contacts_with_messages
+from engine.analyzers.metrics import compute_metrics_for_contact, get_all_contacts_with_messages, SIGNAL_ORDER
 from engine.analyzers.exclude import filter_contacts
 from engine.analyzers.ranker import _resolve_person_name
 from engine.identity.directory import get_person_by_wxid, _person_id_for_wxid
@@ -129,8 +129,7 @@ def _classify_reason(
     neediness_penalty: float,
 ) -> str:
     """分类候选人原因。"""
-    signal_order = {"强意向": 4, "中意向": 3, "弱意向": 2, "冷淡": 1, "无信号": 0}
-    signal_strength = signal_order.get(signal_level, 0)
+    signal_strength = SIGNAL_ORDER.get(signal_level, 0)
 
     # 兴趣下降：超过 3 天没联系，且趋势下降
     if recent_days > 3 and trend < -0.005:

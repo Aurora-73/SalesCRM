@@ -173,6 +173,169 @@ def message_context_data(message_ids: list[str], before: int = 20, after: int = 
         conn.close()
 
 
+def rank_data() -> dict:
+    """结构化排名查询 — 返回 dict 含排名列表。"""
+    from engine.analyzers.ranker import compute_rankings
+    conn, config = _get_conn()
+    try:
+        ranking = compute_rankings(conn, config)
+        return ranking.to_yaml()
+    finally:
+        conn.close()
+
+
+def status_data(name: str) -> dict:
+    """结构化状态概览 — 返回精简的状态快照。
+
+    与 person_metrics 的区别：
+    - person_status：快速了解当前状态（信号等级 + 消息统计 + 趋势），字段少
+    - person_metrics：深入分析指标详情（所有 metrics 展开），字段多
+    """
+    from engine.analyzers.metrics import compute_metrics_for_contact
+    conn, config = _get_conn()
+    try:
+        person = _resolve_person(conn, name)
+        if not person:
+            return {"error": "PERSON_NOT_FOUND", "message": f"未找到联系人: {name}"}
+        if not person.accounts:
+            return {"error": "PERSON_NOT_FOUND", "message": f"未找到联系人: {name}"}
+        result = {
+            "person_id": person.id,
+            "display_name": person.display_name,
+            "account_count": len(person.accounts),
+            "accounts": [],
+        }
+        for account in person.accounts:
+            wxid = account.conversation_id or account.wxid
+            if not wxid:
+                continue
+            msg_row = conn.execute("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = ?", (wxid,)).fetchone()
+            message_count = msg_row["cnt"] if msg_row else 0
+            metrics = compute_metrics_for_contact(conn, config, wxid, account.display_name or person.display_name)
+            result["accounts"].append({
+                "wxid": wxid,
+                "display_name": account.display_name,
+                "message_count": message_count,
+                "composite": round(metrics.composite, 4),
+                "signal_level": metrics.signal_level,
+                "interaction_pattern": metrics.interaction_pattern,
+                "recent_days": round(metrics.recent.raw, 1),
+                "trend": round(metrics.trend.normalized - 0.5, 4),
+                "neediness_penalty": round(metrics.neediness_penalty, 4),
+            })
+        return result
+    finally:
+        conn.close()
+
+
+def wiki_search_data(query: str, limit: int = 5) -> dict:
+    """结构化 Wiki 搜索 — 返回 dict 含搜索结果列表。"""
+    conn, config = _get_conn()
+    try:
+        results: list[dict] = []
+        query_terms = query.lower().split()
+
+        from engine.agent.material import _search_skills, _search_wiki, _search_analysis, _search_kb
+        _search_skills(query_terms, results)
+        _search_wiki(query_terms, results)
+        _search_analysis(query_terms, results)
+        _search_kb(query_terms, results)
+
+        results.sort(key=lambda r: (r.get("priority", 99), -r.get("score", 0)))
+        return {
+            "query": query,
+            "total_results": len(results),
+            "results": results[:limit],
+        }
+    finally:
+        conn.close()
+
+
+def timeline(name: str, max_events: int = 30, categories: list[str] | None = None) -> dict:
+    """结构化时间线查询 — 返回 dict 含关系事件列表。"""
+    from engine.analyzers.events import compute_timeline, timeline_to_dict
+    conn, config = _get_conn()
+    try:
+        person = _resolve_person(conn, name)
+        if not person:
+            return {"error": "PERSON_NOT_FOUND", "message": f"未找到联系人: {name}"}
+        events = compute_timeline(conn, person, max_events=max_events, categories=categories)
+        return {
+            "person_id": person.id,
+            "display_name": person.display_name,
+            "events": timeline_to_dict(events),
+        }
+    finally:
+        conn.close()
+
+
+def signals(name: str) -> dict:
+    """结构化信号查询 — 返回 dict 含检测到的信号。"""
+    from engine.agent.signals import _detect_signals, detect_manipulation_signals, _detect_moments_chat_signals, _query_signal_messages
+    conn, config = _get_conn()
+    try:
+        person = _resolve_person(conn, name)
+        if not person:
+            return {"error": "PERSON_NOT_FOUND", "message": f"未找到联系人: {name}"}
+        wxids = [acc.conversation_id or acc.wxid for acc in person.accounts if acc.conversation_id or acc.wxid]
+        messages = _query_signal_messages(conn, wxids, config.my_wxid)
+        basic_signals = _detect_signals(messages)
+        manipulation_signals = detect_manipulation_signals(messages, config.my_wxid)
+        moments_signals = {}
+        for acc in person.accounts:
+            wxid = acc.conversation_id or acc.wxid
+            if wxid:
+                acc_signals = _detect_moments_chat_signals(
+                    conn, wxid, config.my_wxid, acc.display_name or person.display_name
+                )
+                moments_signals.update(acc_signals)
+        return {
+            "person_id": person.id,
+            "display_name": person.display_name,
+            "basic_signals": basic_signals,
+            "manipulation_signals": manipulation_signals,
+            "moments_signals": moments_signals,
+        }
+    finally:
+        conn.close()
+
+
+def skill_search(query: str, limit: int = 5) -> dict:
+    """结构化技能搜索 — 返回 dict 含匹配的技能列表。
+
+    当 skills/ 目录为空或不存在时，自动 fallback 到 wiki_search，
+    在结果中标注 source="wiki_fallback"。
+    """
+    conn, config = _get_conn()
+    try:
+        from engine.agent.material import _search_skills
+        results: list[dict] = []
+        query_terms = query.lower().split()
+        _search_skills(query_terms, results)
+        results.sort(key=lambda r: (r.get("priority", 99), -r.get("score", 0)))
+
+        if not results:
+            wiki_results = wiki_search_data(query, limit=limit)
+            wiki_items = wiki_results.get("results", [])
+            for w in wiki_items:
+                w["source"] = "wiki_fallback"
+            return {
+                "query": query,
+                "total_results": len(wiki_items),
+                "results": wiki_items[:limit],
+                "fallback": "wiki",
+                "note": "skills/ 目录为空，已 fallback 到 wiki_search",
+            }
+
+        return {
+            "query": query,
+            "total_results": len(results),
+            "results": results[:limit],
+        }
+    finally:
+        conn.close()
+
+
 def sync_moments(name: str) -> str:
     """同步朋友圈互动到事实档案。"""
     conn, config, person = _resolve(name)
@@ -245,6 +408,8 @@ __all__ = [
     "wiki_search", "wiki_show",
     # 只读（结构化）
     "brief_data", "chat_data", "message_context_data",
+    "rank_data", "status_data", "wiki_search_data",
+    "timeline", "signals", "skill_search",
     # 写入
     "note", "date", "evaluate", "events",
     "save_analysis", "save_from_markdown",

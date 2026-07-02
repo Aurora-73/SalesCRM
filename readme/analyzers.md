@@ -10,7 +10,7 @@
 |------|------|------|
 | `metrics.py` | 1117 | 16 指标计算 + neediness_penalty + interaction_pattern + 动态信号 + 销售指标 |
 | `ranker.py` | 269 | 排名引擎（加权排序 + risers/fallers 检测） |
-| `events.py` | 173 | 销售事件检测（断联/恢复/频率变化/需求确认/决策人/报价） |
+| `events.py` | ~300 | 活动时间线 / 事件检测（15 种事件类型 + 里程碑 + 5 个分类） |
 | `exclude.py` | 300 | 5 层排除系统 + 账号合并管理 |
 | `weekly_report.py` | 180 | 周报生成（排名快照 + Markdown 报告） |
 | `chat_history.py` | ~100 | 聊天历史查询辅助 |
@@ -108,27 +108,69 @@ def compute_rankings(conn: sqlite3.Connection, config: Config) -> Ranking:
 
 视图数据包含在 `Ranking` 对象中，同时 `format_ranking_table()` 会自动输出三个视图的列表。
 
-## 事件检测（events.py）
+## 活动时间线（events.py）
+
+从聊天记录中自动提取关键关系事件，形成联系人的"关系时间线"。
+
+### 核心函数
 
 ```python
-def detect_events(
-    conn, contact_wxid, disconnect_days=7
+def compute_timeline(
+    conn, person, include_milestones=True, categories=None, max_events=50
 ) -> list[Event]:
-    """检测销售事件。"""
+    """生成完整的关系时间线。整合所有事件类型，按时间排序。"""
+
+def detect_events(conn, person, disconnect_days=7) -> list[Event]:
+    """检测基础事件（聊天频率、断联、销售进展等）。"""
+
+def detect_milestones(conn, person) -> list[Event]:
+    """检测里程碑事件（认识 N 天、消息破 N 条等）。"""
+
+def format_timeline(events, group_by_month=True) -> str:
+    """格式化时间线为可读文本，支持按月分组。"""
 ```
 
-### EventType
+### 事件分类与类型
 
-| 类型 | 检测逻辑 |
+| 分类 | 事件类型 | 说明 |
+|------|---------|------|
+| 🏆 里程碑 | `FIRST_CHAT` | 首次聊天 |
+| 🏆 里程碑 | `FIRST_DATE` | 首次约见 |
+| 🏆 里程碑 | `MILESTONE` | 关系里程碑（认识 N 天、消息破 N 条） |
+| 🏆 里程碑 | `FIRST_MEETING` | 首次会面（销售特有） |
+| 🏆 里程碑 | `DEAL_CLOSE` | 成交（销售特有） |
+| 💬 沟通动态 | `FREQUENCY_UP` | 聊天频率上升 |
+| 💬 沟通动态 | `FREQUENCY_DOWN` | 聊天频率下降 |
+| 💬 沟通动态 | `DISCONNECT` | 断联 |
+| 💬 沟通动态 | `RECONNECT` | 恢复联系 |
+| 📈 信号变化 | `SIGNAL_LEVEL_UP` | 意向等级提升 |
+| 📈 信号变化 | `SIGNAL_LEVEL_DOWN` | 意向等级下降 |
+| 📝 信息更新 | `INFO_UPDATE` | 档案信息更新 |
+| 💰 销售进展 | `REQUIREMENT_CONFIRM` | 需求确认（销售特有） |
+| 💰 销售进展 | `DECISION_MAKER_APPEAR` | 决策人出现（销售特有） |
+| 💰 销售进展 | `PROPOSAL_SENT` | 报价发送（销售特有） |
+
+### 里程碑自动检测
+
+| 类型 | 检测条件 |
 |------|---------|
-| `FIRST_CHAT` | 该联系人的第一条消息 |
-| `DISCONNECT` | 连续无消息 ≥ disconnect_days 天 |
-| `RECONNECT` | 断联后恢复联系 |
-| `FREQUENCY_UP` | 7 天滑动意向内消息量显著上升 |
-| `FREQUENCY_DOWN` | 7 天滑动意向内消息量显著下降 |
-| `REQUIREMENT_CONFIRM` | 提及需求/方案/产品功能（销售特有） |
-| `DECISION_MAKER_APPEAR` | 提及老板/领导/负责人/审批（销售特有） |
-| `PROPOSAL_SENT` | 提及报价/价格/预算（销售特有） |
+| 认识天数 | 100 天、365 天、1000 天 |
+| 消息数量 | 100 条、500 条、1000 条、5000 条、10000 条 |
+
+### Event 数据结构
+
+```python
+@dataclass
+class Event:
+    event_type: EventType       # 事件类型枚举
+    date: str                   # YYYY-MM-DD
+    detail: str                 # 详细描述
+    confidence: float = 1.0     # 置信度 (0-1)
+    category: TimelineCategory  # 事件分类
+    metadata: dict              # 附加元数据
+
+    def to_dict(self) -> dict:  # 序列化为 dict
+```
 
 ## 排除系统（exclude.py）
 

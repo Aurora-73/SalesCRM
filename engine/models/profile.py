@@ -19,6 +19,23 @@ class Profile(EntityBase):
     age: Optional[int] = None
     occupation: str = ""
 
+    custom_fields: dict[str, str] = field(default_factory=dict)
+
+    def get_custom(self, key: str, default: str = "") -> str:
+        """获取自定义字段值。"""
+        return self.custom_fields.get(key, default)
+
+    def set_custom(self, key: str, value: str) -> None:
+        """设置自定义字段值。"""
+        self.custom_fields[key] = value
+        self.touch()
+
+    def remove_custom(self, key: str) -> None:
+        """删除自定义字段。"""
+        if key in self.custom_fields:
+            del self.custom_fields[key]
+            self.touch()
+
     @classmethod
     def from_wechat_row(cls, row: dict) -> "Profile":
         """从 contacts 表行创建"""
@@ -53,10 +70,11 @@ class Profile(EntityBase):
             added_date=d.get("added_date", ""),
             age=d.get("age"),
             occupation=d.get("occupation", ""),
+            custom_fields=d.get("custom_fields", {}),
         )
 
     def to_yaml(self) -> dict:
-        return {
+        data = {
             "_id": self._id,
             "source": self.source,
             "name": self.name,
@@ -70,3 +88,6 @@ class Profile(EntityBase):
             "age": self.age,
             "occupation": self.occupation,
         }
+        if self.custom_fields:
+            data["custom_fields"] = self.custom_fields
+        return data

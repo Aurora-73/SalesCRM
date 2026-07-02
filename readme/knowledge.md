@@ -2,7 +2,7 @@
 
 ## 概述
 
-`engine/knowledge/` 提供销售知识库的检索能力。知识库内容存储在 `docs/sales/` 目录下，本模块负责索引、搜索、格式化输出。
+`engine/knowledge/` 提供销售知识库的检索能力。知识库内容存储在 `docs/wiki/` 目录下（OKF 格式），本模块负责索引、搜索、格式化输出。
 
 ## 核心文件
 
@@ -15,24 +15,25 @@
 ## 知识库内容结构
 
 ```
-docs/sales/
-├── search-index.json      # 预构建索引（快速加载）
-├── .wiki-schema.md        # 别名表（同义词扩展）
-└── wiki/
-    ├── entities/          # 概念/框架
-    │   ├── SPIN.md
-    │   ├── MEDDIC.md
-    │   └── ChallengerSale.md
-    ├── scenarios/         # 场景决策页
-    │   ├── 客户说太贵了怎么回.md
-    │   ├── 客户不回复了怎么办.md
-    │   └── 如何识别决策人.md
-    ├── comparisons/       # 跨源对比
-    ├── queries/           # 主题综述
-    └── overview.md
+docs/wiki/                   # OKF 格式知识库
+├── index.md                 # Knowledge Bundle 根索引
+├── entities/                # 概念/框架
+│   ├── index.md
+│   ├── SPIN.md
+│   ├── MEDDIC.md
+│   └── ChallengerSale.md
+├── scenarios/               # 场景决策页
+│   ├── index.md
+│   ├── 客户说太贵了怎么回.md
+│   ├── 客户不回复了怎么办.md
+│   └── 如何识别决策人.md
+├── sources/                 # 参考资料
+├── topics/                  # 主题索引
+├── synthesis/               # 综合分析
+└── okf-report.json          # OKF 验证报告
 ```
 
-**当前状态**：`docs/sales/` 仅有骨架，内容待填充。
+**当前状态**：`docs/wiki/` 已有 95 个条目（78 实体 + 14 场景 + 索引），OKF 格式已验证通过。
 
 每个 Markdown 文件有 YAML frontmatter：
 
@@ -64,7 +65,7 @@ class WikiIndex:
 @dataclass
 class WikiPage:
     title: str           # "SPIN 销售法"
-    path: str            # "docs/sales/wiki/entities/SPIN.md"
+    path: str            # "docs/wiki/entities/SPIN.md"
     page_type: str       # "entity" / "scenario" / "comparison" / "query"
     tags: list[str]
     keywords: list[str]
@@ -136,12 +137,12 @@ def format_wiki_for_prompt(snippets: list[WikiSnippet]) -> str:
 
 ```markdown
 ## Wiki: SPIN 销售法
-> 来源: docs/sales/wiki/entities/SPIN.md | 类型: entity
+> 来源: docs/wiki/entities/SPIN.md | 类型: entity
 
 （关键步骤提取后的内容）
 
 ## Wiki: 价格异议应对
-> 来源: docs/sales/wiki/scenarios/价格异议应对.md | 类型: scenario
+> 来源: docs/wiki/scenarios/价格异议应对.md | 类型: scenario
 
 （关键步骤提取后的内容）
 ```
@@ -162,7 +163,7 @@ material.py: WikiIndex → WikiRetriever.retrieve('SPIN 需求挖掘')
     ↓
 返回 Markdown（标题 + 路径 + 摘要）
 
-tools.py: wiki_show('docs/sales/wiki/entities/SPIN.md')
+tools.py: wiki_show('docs/wiki/entities/SPIN.md')
     ↓
 直接读取文件内容，返回 str
 ```
@@ -174,4 +175,4 @@ tools.py: wiki_show('docs/sales/wiki/entities/SPIN.md')
 3. **wiki_show 只读文件**：不做任何评分或裁剪，直接返回文件全部内容（受 max_chars 限制）。
 4. **wiki_search 不需要 person**：只需要 conn 和 config（用于定位 wiki 根目录），不涉及具体联系人。
 5. **内容不进 git**：`docs/` 目录有独立的二级 git 仓库，不推远程。
-6. **知识库扩展**：`docs/sales/` 为销售场景知识库（待填充）。
+6. **知识库扩展**：`docs/wiki/` 为销售场景知识库（OKF 格式，持续扩充中）。

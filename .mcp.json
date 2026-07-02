@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "salescrm": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "E:/Code/SalesCRM",
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
