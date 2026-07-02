@@ -4,12 +4,22 @@ from __future__ import annotations
 import re
 import sqlite3
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from engine.config import Config, OUTPUTS_ANALYSIS_DIR, slug_display_name
 from engine.identity import IdentityPerson
 from engine.agent.core import _build_cross_refs, _extract_sections
 from engine.agent.snapshot import _select_important_messages, _generate_monthly_summary
+
+
+_BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def _ts_to_beijing(ts):
+    """Unix 秒级时间戳转北京时间字符串（内部存储仍为整数，接口处转为可读格式）。"""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=_BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def agent_brief(conn: sqlite3.Connection, config: Config, person: IdentityPerson, *, compact: bool = False) -> str:
@@ -355,6 +365,8 @@ def agent_brief_data(
             "customer_count": stats.get("customer_count", 0),
             "first_ts": stats.get("first_ts"),
             "last_ts": stats.get("last_ts"),
+            "first_ts_str": _ts_to_beijing(stats.get("first_ts")),
+            "last_ts_str": _ts_to_beijing(stats.get("last_ts")),
         },
         "metrics": metrics,
         "events": events_list,

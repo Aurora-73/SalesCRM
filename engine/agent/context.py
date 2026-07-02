@@ -7,9 +7,19 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import yaml
+
+_BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def _ts_to_beijing(ts):
+    """Unix 秒级时间戳转北京时间字符串（内部存储仍为整数，接口处转为可读格式）。"""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=_BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 from engine.config import Config, FACTS_PEOPLE_DIR, FACTS_SELF_DIR, OUTPUTS_RANKINGS_DIR
 from engine.identity import resolve_contact, IdentityPerson
@@ -61,6 +71,7 @@ def query_message_context(
                 "is_mine": sid == my_wxid if my_wxid else False,
                 "content": r["content"] or "",
                 "timestamp": r["timestamp"],
+                "time_str": _ts_to_beijing(r["timestamp"]),
                 "type": r["type"],
                 "platform": r["platform"] or "wechat",
                 "source": r["source"] or "sync",
@@ -210,6 +221,7 @@ class ContextBuilder:
                 "is_mine": is_mine,
                 "content": row["content"] or "",
                 "timestamp": row["timestamp"],
+                "time_str": _ts_to_beijing(row["timestamp"]),
             })
         return messages
 

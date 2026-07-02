@@ -1,4 +1,4 @@
-"""最终质量自检 — 全量验收测试（SalesCRM 版本，54 工具）"""
+"""最终质量自检 — 全量验收测试（SalesCRM 版本，55 工具）"""
 import sys
 import asyncio
 
@@ -11,10 +11,10 @@ if sys.platform == 'win32':
 
 
 def test_tool_count():
-    """验证工具总数为 54（53 + guide）"""
+    """验证工具总数为 55（53 + guide + wcd_start）"""
     from mcp_server.server import mcp
     tools = asyncio.run(mcp.list_tools())
-    assert len(tools) == 54, f"工具数应为 54，实际 {len(tools)}"
+    assert len(tools) == 55, f"工具数应为 55，实际 {len(tools)}"
     print(f"[PASS] 工具总数: {len(tools)}")
     return tools
 
@@ -32,7 +32,7 @@ def test_tool_categories(tools):
     write_tools = [t for t in tools if not is_readonly(t)]
     print(f"  只读工具: {len(read_tools)} 个")
     print(f"  写入工具: {len(write_tools)} 个")
-    assert len(read_tools) + len(write_tools) == 54
+    assert len(read_tools) + len(write_tools) == 55
     print("[PASS] 工具分类统计正确")
 
 
@@ -51,7 +51,8 @@ def test_phase_distribution(tools):
 
     p1 = {"person_timeline", "person_signals", "person_evidence", "skill_search",
           "person_compare", "weekly_report", "person_moments_stats", "maintain_list",
-          "events_scan", "events_save", "person_evaluate", "system_sync", "wcd_status"}
+          "events_scan", "events_save", "person_evaluate", "system_sync",
+          "wcd_status", "wcd_start"}
     assert p1.issubset(tool_names), f"P1 缺少: {p1 - tool_names}"
     print(f"  [PASS] Phase 2 P1: {len(p1)} 个工具")
 
@@ -79,7 +80,7 @@ def test_phase_distribution(tools):
     print(f"  [PASS] guide: {len(guide_tools)} 个工具")
 
     total = len(phase1) + len(p0) + len(p1) + len(p2) + len(p3_strategy) + len(p3_sales) + len(guide_tools)
-    assert total == 54, f"总计应为 54，实际 {total}"
+    assert total == 55, f"总计应为 55，实际 {total}"
     print(f"  [PASS] 总计: {total} 个工具")
 
 
@@ -295,5 +296,5 @@ if __name__ == "__main__":
     test_utf8_encoding()
 
     print("\n" + "=" * 60)
-    print("🎉 全量验收通过 — 54 个工具全部就绪（含 guide）")
+    print("🎉 全量验收通过 — 55 个工具全部就绪（含 guide + wcd_start）")
     print("=" * 60)

@@ -372,6 +372,113 @@ def wcd_status() -> dict:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WCD 配置"}
 
 
+def wcd_start(timeout: int = 30) -> dict:
+    """启动 WCD 后端进程并等待健康检查通过。
+
+    什么时候用：wcd_status 显示 offline 时调此工具启动后端。
+    返回什么：dict 含 success/message/already_running/pid 字段。
+    边界是什么：如果 WCD 已在运行，直接返回成功。启动是异步的，进程会持续运行。
+    密钥安全：不获取密钥，只启动进程。密钥缓存会自动加载。
+    """
+    import sys
+    import time
+    import subprocess
+    from pathlib import Path
+
+    try:
+        from engine.importers.wcd_client import WCDClient
+        from engine.agent.core import _get_conn
+        conn, config = _get_conn()
+        try:
+            if config.weflow.backend != "wcd":
+                return {
+                    "success": False,
+                    "message": f"当前后端是 {config.weflow.backend}，非 WCD，无需启动",
+                }
+
+            client = WCDClient(
+                base_url=config.weflow.base_url,
+                decrypted_db_dir=config.weflow.decrypted_db_dir or None,
+            )
+
+            # 1. 已在运行则直接返回
+            if client.health():
+                return {
+                    "success": True,
+                    "already_running": True,
+                    "message": "WCD 后端已在运行，无需重复启动",
+                }
+
+            # 2. 定位 WCD 目录（项目本地或共享路径）
+            project_root = Path(__file__).resolve().parent.parent
+            wcd_dir = project_root / "_reference" / "WeChatDataAnalysis"
+            if not wcd_dir.exists():
+                # 尝试 loveMentor 共享路径
+                alt_dir = Path("E:/Code/loveMentor/_reference/WeChatDataAnalysis")
+                if alt_dir.exists():
+                    wcd_dir = alt_dir
+                else:
+                    return {
+                        "success": False,
+                        "message": f"WCD 目录不存在: {wcd_dir}",
+                        "suggestion": "请确认 WCD 后端代码已安装，或从其他项目启动 WCD 后端",
+                    }
+
+            # 3. 启动进程（隐藏窗口）
+            startupinfo = None
+            creationflags = 0
+            if sys.platform == 'win32':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW
+
+            proc = subprocess.Popen(
+                ["uv", "run", "main.py"],
+                cwd=str(wcd_dir),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+                creationflags=creationflags,
+            )
+
+            # 4. 轮询健康检查
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                time.sleep(2)
+                if client.health():
+                    elapsed = time.time() - start_time
+                    return {
+                        "success": True,
+                        "already_running": False,
+                        "pid": proc.pid,
+                        "message": f"WCD 后端启动成功（PID: {proc.pid}，耗时 {elapsed:.1f}s）",
+                    }
+                if proc.poll() is not None:
+                    return {
+                        "success": False,
+                        "pid": proc.pid,
+                        "message": f"WCD 后端进程已退出（返回码: {proc.returncode}）",
+                        "suggestion": "请手动在 WCD 目录运行 uv run main.py 查看错误信息",
+                    }
+
+            return {
+                "success": False,
+                "pid": proc.pid,
+                "message": f"WCD 后端启动超时（{timeout}s）",
+                "suggestion": "进程已启动但健康检查未通过，请手动检查",
+            }
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "message": "未找到 uv 命令",
+            "suggestion": "请确认 uv 已安装并在 PATH 中（pip install uv 或参考 https://docs.astral.sh/uv/）",
+        }
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WCD 配置和依赖"}
+
+
 # ── Phase 2 P2: contact/sticker/exclude/failure 拆分 ─────────
 
 

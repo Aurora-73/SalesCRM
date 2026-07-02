@@ -167,9 +167,22 @@ def agent_save_from_markdown(person: IdentityPerson, markdown_text: str) -> Path
     next_step = sections.get("下一步", "").strip()
     risks_raw = sections.get("风险", "")
     risks = [line.lstrip("- ").strip() for line in risks_raw.split("\n") if line.strip().startswith("- ")]
-    return agent_save_analysis(
+    yaml_path = agent_save_analysis(
         person, stage=stage_name, confidence=conf,
         reasoning=sections.get("依据", "").strip(), signals=signals,
         next_step=next_step, diagnosis=sections.get("诊断", "").strip(),
         strategy=sections.get("策略", "").strip(), risks=risks,
     )
+    # 同时保存原始 Markdown 报告到 latest.md
+    md_path = yaml_path.parent / "latest.md"
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(markdown_text)
+    # 归档历史 MD
+    from datetime import datetime as dt
+    history_dir = yaml_path.parent / "history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    ts = dt.now().strftime("%Y-%m-%dT%H%M%S")
+    history_md_path = history_dir / f"{ts}.md"
+    with open(history_md_path, "w", encoding="utf-8") as f:
+        f.write(markdown_text)
+    return md_path

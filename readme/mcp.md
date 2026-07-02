@@ -1,6 +1,6 @@
 # SalesCRM MCP 服务器
 
-> **状态**：已完工 — 54 个工具全部注册，全量验收通过
+> **状态**：已完工 — 55 个工具全部注册，全量验收通过
 > **最后更新**：2026-07-02
 
 ---
@@ -46,9 +46,8 @@ Claude Desktop / Cursor / Windsurf
 ```
 mcp_server/
 ├── __init__.py
-├── server.py                # FastMCP 入口，注册 54 个工具
-├── tools_read.py            # 只读工具（23 个）
-├── tools_write.py           # 写入工具（15 个）
+├── server.py                # FastMCP 入口，注册 55 个工具
+├── tools_read.py            # 只读工具（23 个）+ wcd_start（写入）
 ├── tools_formula.py         # 公式工具（15 个：9 战态 + 6 销售）
 ├── tools_guide.py           # 使用指南工具（1 个，11 个主题）
 ├── README.md                # 使用说明
@@ -90,7 +89,7 @@ python -X utf8 -m mcp_server.server
 
 ---
 
-## 五、工具清单（54 个）
+## 五、工具清单（55 个）
 
 > **Wiki 工具优先**：`wiki_search` 是 Agent 推理的第一依据，分析前先检索 Wiki 找方法论框架。
 > **使用指南**：`guide` 工具提供 11 个主题的操作指南（分析流程/报告模板/方法论/权限规范等），Agent 不确定操作流程时调用。
@@ -116,7 +115,7 @@ python -X utf8 -m mcp_server.server
 
 **只读（8 个）：** `person_timeline`、`person_signals`、`person_evidence`、`skill_search`、`person_compare`、`weekly_report`、`person_moments_stats`、`maintain_list`、`events_scan`、`wcd_status`
 
-**写入（3 个）：** `events_save`、`person_evaluate`、`system_sync`
+**写入（4 个）：** `events_save`、`person_evaluate`、`system_sync`、`wcd_start`（启动 WCD 后端进程）
 
 ### 5.4 Phase 2 P2 — 拆分工具（14 个）
 
@@ -187,7 +186,7 @@ python -X utf8 -m mcp_server.server
 | # | 条件 | 结果 |
 |---|------|------|
 | 1 | MCP 服务器能正常启动 | ✅ PASS |
-| 2 | 工具总数 = 54 | ✅ PASS（54） |
+| 2 | 工具总数 = 55 | ✅ PASS（55） |
 | 3 | Phase 1 八工具全部可用 | ✅ PASS |
 | 4 | 销售公式 6 工具全部可用 | ✅ PASS |
 | 5 | `fetch_keys` 未被暴露 | ✅ PASS |
@@ -204,9 +203,9 @@ python -X utf8 -m mcp_server.server
 | 类别 | 数量 | 定位 |
 |------|------|------|
 | 只读工具（含 Wiki 检索 3 个 + guide 1 个） | 24 | **Wiki 工具是推理主轴，优先调用** |
-| 写入工具 | 15 | 事实档案 + 分析归档 |
+| 写入工具 | 16 | 事实档案 + 分析归档 + WCD 启动 |
 | 公式工具（辅助参考） | 15 | chat-skills 遗产，核验而非套用 |
-| **总计** | **54** | — |
+| **总计** | **55** | — |
 
 > Wiki 工具：`wiki_search`、`wiki_read`、`skill_search`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
 > guide 工具：11 个主题的操作指南，Agent 不确定流程时调用 `guide(topic)`。

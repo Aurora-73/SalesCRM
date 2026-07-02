@@ -3,13 +3,22 @@ from __future__ import annotations
 
 import sqlite3
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from engine.config import Config
 from engine.identity import IdentityPerson
 from engine.agent.core import _build_cross_refs
 from engine.agent.response import ok, err
+
+_BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def _ts_to_beijing(ts):
+    """Unix 秒级时间戳转北京时间字符串（内部存储仍为整数，接口处转为可读格式）。"""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=_BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _query_chat_messages(
@@ -49,6 +58,7 @@ def _query_chat_messages(
                 "sender_id": sender_id,
                 "is_mine": sender_id == config.my_wxid,
                 "timestamp": row["timestamp"],
+                "time_str": _ts_to_beijing(row["timestamp"]),
                 "content": row["content"] or "",
                 "type": row["type"],
                 "platform": row["platform"] or "wechat",

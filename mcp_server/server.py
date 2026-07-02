@@ -172,9 +172,16 @@ mcp.tool(
 
 mcp.tool(
     name="wcd_status",
-    description="检查 WCD 后端在线状态 + 密钥缓存状态（只读，不启动进程、不获取密钥）",
+    description="检查 WCD 后端在线状态和密钥缓存状态（只读检测，不启动进程）。如果显示 offline，请调 wcd_start 启动后端",
     annotations={"readOnlyHint": True},
 )(tools_read.wcd_status)
+
+mcp.tool(
+    name="wcd_start",
+    description="启动 WCD 后端进程并等待健康检查通过。如果 WCD 已在运行则直接返回成功。"
+               "启动后进程持续运行，不获取密钥（密钥缓存自动加载）。"
+               "使用场景：wcd_status 显示 offline 时调此工具启动后端",
+)(tools_read.wcd_start)
 
 # ── Phase 2 P1: events 拆分 + 同步 + 评价（3 个写入）──────────
 
@@ -265,8 +272,10 @@ mcp.tool(
 
 mcp.tool(
     name="save_from_markdown",
-    description="⚠️【分析完成·必须调用】保存完整 Markdown 分析报告。分析完成后必须调用，否则历史分析无法追溯、personal_patterns 无法累积。"
-               "建议先用 guide('report-template') 获取报告模板。数据写入 data/outputs/analysis/<name>/latest.md",
+    description="⚠️【分析完成·必须调用】保存完整 Markdown 分析报告。"
+               "同时生成两个文件：latest.md（完整 Markdown 报告）+ latest.yaml（结构化数据）。"
+               "报告必须详细（8 段式），不能只列公式数值和一句话结论。"
+               "建议先用 guide('report-template') 获取报告模板。",
 )(tools_write.save_from_markdown_tool)
 
 mcp.tool(
