@@ -20,6 +20,20 @@ _SECTION_MAP = {
 }
 
 
+def _dedup_timeline(content: str) -> str:
+    """去重时间线中的事件条目（- [date] type: detail 格式），保留首次出现。"""
+    seen: set[str] = set()
+    result: list[str] = []
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("- [") and "] " in stripped:
+            if stripped in seen:
+                continue
+            seen.add(stripped)
+        result.append(line)
+    return "\n".join(result)
+
+
 def agent_evidence(
     conn: sqlite3.Connection, config: Config, person: IdentityPerson, *,
     section: str = "all", since_date: str | None = None,
@@ -76,6 +90,8 @@ def agent_evidence(
             continue
         if not content:
             continue
+        if name == "关系时间线":
+            content = _dedup_timeline(content)
         parts.append(f"## {name}\n")
         if name == "关系时间线" and since_ts:
             entries = re.split(r"(?=^### )", content, flags=re.MULTILINE)

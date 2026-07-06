@@ -300,7 +300,7 @@ Agent 读取 person_evidence 时，对 evaluations 段落要保持批判性，
 | 只读 | brief/chat/metrics/status/rank/wiki/* | ❌ 不需要 | 自由调用 |
 | 追加写入 | note/date/evaluate | ❌ 不需要 | 直接执行 |
 | 覆盖写入 | save_analysis / save_from_markdown | ⚠️ 覆盖前告知 | save_from_markdown 是必做，save_analysis 可选 |
-| 检测写入 | events_save | ⚠️ 先 scan 展示 | 先 events_scan 再 events_save |
+| 检测写入 | events_save | ⚠️ 建议先 scan 展示 | 直接调用会自动检测+写入；建议先 events_scan 展示供确认 |
 | 不可逆 | contact_merge | 🔴 必须确认 | merge 不可撤销 |
 """,
     "rules/reply": """# 回复构造规则

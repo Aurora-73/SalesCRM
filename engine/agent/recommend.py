@@ -92,7 +92,7 @@ def _recommend_wiki(conn: sqlite3.Connection, config: Config, person: IdentityPe
         return []
     retriever = WikiRetriever(index)
     snippets = retriever.retrieve(
-        query_text=query_text, task_type="analyze", selected_skills=None,
+        query_text=query_text, task_type="analyze",
         stage=stage, max_chars=5000, max_pages=max_pages,
     )
     return [

@@ -60,11 +60,13 @@ def person_save_analysis(
     risks: Optional[list[str]] = None,
     skills_used: Optional[list[str]] = None,
 ) -> dict:
-    """保存分析结论到 data/outputs/analysis/。
+    """⚠️【覆盖写入】保存分析结论到 data/outputs/analysis/。
 
     什么时候用：完成客户分析后，将结论持久化以便后续对比和追踪。
-    返回什么：dict 含 success/message/path 字段。
-    边界是什么：覆盖写入（同人会覆盖上一次的 latest.yaml，旧版本自动转为 previous.yaml）。
+    返回什么：dict 含 success/message/path/previous_info/changed_fields/history_path 字段。
+    边界是什么：覆盖写入（同人会覆盖上一次的 latest.yaml，旧版本自动转为 previous.yaml，
+    同时 history/ 目录保留带时间戳的历史副本）。返回的 previous_info 和 changed_fields
+    用于告知调用方被覆盖的旧版本信息及本次变更字段。
     stage/confidence/reasoning 为核心字段，其余可选。
     """
     try:
@@ -75,7 +77,14 @@ def person_save_analysis(
             diagnosis=diagnosis, strategy=strategy,
             risks=risks, skills_used=skills_used,
         )
-        return {"success": True, "message": f"分析已保存: {result}", "path": str(result)}
+        return {
+            "success": True,
+            "message": f"分析已保存: {result['path']}",
+            "path": result["path"],
+            "previous_info": result["previous_info"],
+            "changed_fields": result["changed_fields"],
+            "history_path": result["history_path"],
+        }
     except Exception as e:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查客户姓名和分析参数"}
 
@@ -95,11 +104,12 @@ def person_evaluate(name: str, text: str) -> dict:
 
 
 def events_save(name: str, disconnect_days: int = 7) -> dict:
-    """检测并写入关系事件。
+    """检测并写入关系事件（一步完成检测+写入）。
 
-    什么时候用：确认 events_scan 的结果后，将事件写入事实档案。
-    返回什么：dict 含 success/message 字段，message 为写入结果。
-    边界是什么：scan=True 会写入事实档案；disconnect_days 控制断联判定阈值。
+    什么时候用：需要检测断联、恢复等关系事件并写入事实档案时。
+    返回什么：dict 含 success/message 字段，message 为检测结果+写入结果。
+    边界是什么：直接调用即自动检测+写入；建议先调 events_scan 展示结果供用户确认，但非强制。
+    disconnect_days 控制断联判定阈值（默认 7 天）。
     """
     try:
         result = _events(name, scan=True, disconnect_days=disconnect_days)
@@ -116,13 +126,28 @@ def contact_alias(query: str, alias_type: str = "", value: str = "", sensitivity
 
     什么时候用：需要给联系人添加备注名、外号等别名时。
     返回什么：dict 含 success/message 字段。
-    边界是什么：追加写入，直接执行。
+    边界是什么：追加写入，直接执行。写错别名无法通过本工具修改，请调 contact_alias_remove 删除后重设。
     """
     try:
         result = contact(query, action="alias", type=alias_type, value=value, sensitivity=sensitivity)
         return {"success": True, "message": result}
     except Exception as e:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+
+
+def contact_alias_remove(query: str, alias_type: str, value: str = "") -> dict:
+    """删除联系人的别名。
+
+    什么时候用：别名写错或不再需要时删除。
+    返回什么：dict 含 success/message/deleted 字段。
+    边界是什么：alias_type 必填；value 为空时删除该类型的所有别名，value 非空时只删匹配的那条。
+    """
+    try:
+        result = contact(query, action="remove_alias", type=alias_type, value=value or None)
+        deleted = "已删除" in result and "条别名" in result
+        return {"success": True, "message": result, "deleted": deleted}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查客户姓名和 alias_type 是否正确"}
 
 
 def contact_merge(source: str, target: str) -> dict:

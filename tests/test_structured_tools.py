@@ -446,7 +446,7 @@ class TestSaveAnalysisNewFields:
                 evidence_refs=evidence,
                 metric_snapshot={"composite": 0.65, "fback": 0.4},
                 data_window={"from_date": "2025-01-01", "to_date": "2025-06-01"},
-            )
+            )["path"]
             assert path.is_file()
 
             with open(path, encoding="utf-8") as f:
@@ -458,7 +458,7 @@ class TestSaveAnalysisNewFields:
             config_mod.OUTPUTS_ANALYSIS_DIR = orig_dir
 
     def test_new_fields_optional(self, tmp_db, test_config, tmp_path):
-        """不传新字段时，save_analysis 行为不变。"""
+        """不传新字段时，save_analysis 输出稳定 schema（字段始终存在但为空值）。"""
         person = _make_person(tmp_db)
         import engine.agent.write as write_mod
         import engine.config as config_mod
@@ -469,15 +469,16 @@ class TestSaveAnalysisNewFields:
             path = agent_save_analysis(
                 person, stage="初步接触期", confidence=0.5, reasoning="无",
                 diagnosis="诊断", strategy="策略",
-            )
+            )["path"]
             assert path.is_file()
 
             with open(path, encoding="utf-8") as f:
                 saved = yaml.safe_load(f)
-            # 新字段不应出现
-            assert "evidence_refs" not in saved
-            assert "metric_snapshot" not in saved
-            assert "data_window" not in saved
+            # 新字段始终存在但为空值（稳定 schema）
+            assert saved["evidence_refs"] == []
+            assert saved["metric_snapshot"] == {}
+            assert saved["data_window"] == {}
+            assert saved["changed_from_previous"] == ""
             # 老字段正常
             assert saved["stage"]["stage"] == "初步接触期"
             assert saved["diagnosis"] == "诊断"
@@ -496,7 +497,7 @@ class TestSaveAnalysisNewFields:
                 person, stage="需求确认期", confidence=0.8, reasoning="...",
                 diagnosis="...", strategy="...",
                 changed_from_previous="阶段从初步接触期→需求确认期，fback 从 0.2→0.5",
-            )
+            )["path"]
             with open(path, encoding="utf-8") as f:
                 saved = yaml.safe_load(f)
             assert saved["changed_from_previous"] == "阶段从初步接触期→需求确认期，fback 从 0.2→0.5"
@@ -516,7 +517,7 @@ class TestSaveAnalysisNewFields:
                 person, stage="需求确认期", confidence=0.6, reasoning="...",
                 diagnosis="...", strategy="...",
                 evidence_refs=[{"message_id": "x", "quote": "y"}],
-            )
+            )["path"]
             # latest.yaml
             assert path.is_file()
             assert path.name == "latest.yaml"

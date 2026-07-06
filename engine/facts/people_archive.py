@@ -65,6 +65,7 @@ def append_note(person: IdentityPerson, text: str, *, my_wxid: str = "") -> Path
     content = _ensure_section(content, section)
     entry = f"- {datetime.now():%Y-%m-%d %H:%M} {text.strip()}"
     content = _append_to_section(content, section, entry)
+    content = _update_timestamp(content)
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -76,16 +77,35 @@ def append_event(
     detail: str,
     *,
     my_wxid: str = "",
-) -> Path:
-    """将事件写入事实档案的关系时间线。"""
+) -> tuple[Path, bool]:
+    """将事件写入事实档案的关系时间线。返回 (path, is_new)：is_new=False 表示重复跳过。"""
     path = get_person_archive_path(person, my_wxid=my_wxid)
     content = _load_or_init_archive(path, person)
     section = "## 关系时间线"
     content = _ensure_section(content, section)
     entry = f"- [{event_date}] {event_type}: {detail}"
+    if _event_entry_exists(content, section, entry):
+        return path, False
     content = _append_to_section(content, section, entry)
+    content = _update_timestamp(content)
     path.write_text(content, encoding="utf-8")
-    return path
+    return path, True
+
+
+def _event_entry_exists(content: str, section: str, entry: str) -> bool:
+    """检查事件条目是否已存在于该 section 中（基于文本精确匹配）。"""
+    lines = content.splitlines()
+    in_section = False
+    entry_norm = entry.strip()
+    for line in lines:
+        if line.strip() == section:
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if in_section and line.strip() == entry_norm:
+            return True
+    return False
 
 
 def append_date_entry(
@@ -110,6 +130,7 @@ def append_date_entry(
     detail = "；".join(parts) if parts else "待补充"
     entry = f"### {title}\n- {detail}"
     content = _append_to_section(content, section, entry)
+    content = _update_timestamp(content)
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -182,6 +203,15 @@ def _ensure_frontmatter(content: str, person: IdentityPerson) -> str:
         f"updated_at: {now}\n"
         f"---\n\n{content}"
     )
+
+
+def _update_timestamp(content: str) -> str:
+    """刷新 frontmatter 的 updated_at 和 body 的'最后更新'行。"""
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    now_date = datetime.now().strftime("%Y-%m-%d")
+    content = re.sub(r"(updated_at:\s*).+", rf"\g<1>{now_iso}", content)
+    content = re.sub(r"(>\s*最后更新[：:]\s*).+", rf"\g<1>{now_date}", content)
+    return content
 
 
 def _ensure_section(content: str, section: str) -> str:

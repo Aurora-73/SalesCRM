@@ -113,15 +113,15 @@ python -X utf8 -m mcp_server.server
 
 ### 5.3 Phase 2 P1 — 已实现工具（13 个）
 
-**只读（8 个）：** `person_timeline`、`person_signals`、`person_evidence`、`skill_search`、`person_compare`、`weekly_report`、`person_moments_stats`、`maintain_list`、`events_scan`、`wcd_status`
+**只读（9 个）：** `person_timeline`、`person_signals`、`person_evidence`、`person_compare`、`weekly_report`、`person_moments_stats`、`maintain_list`、`events_scan`、`wcd_status`
 
 **写入（4 个）：** `events_save`、`person_evaluate`、`system_sync`、`wcd_start`（启动 WCD 后端进程）
 
-### 5.4 Phase 2 P2 — 拆分工具（14 个）
+### 5.4 Phase 2 P2 — 拆分工具（15 个）
 
 **只读（6 个）：** `contact_search`、`sticker_scan`、`sticker_list`、`exclude_list`、`failure_list`、`message_context`
 
-**写入（8 个）：** `contact_alias`、`contact_merge`（不可逆）、`sticker_label`、`exclude_add`、`exclude_remove`、`failure_add`、`save_from_markdown`、`sync_moments`
+**写入（9 个）：** `contact_alias`、`contact_alias_remove`、`contact_merge`（不可逆）、`sticker_label`、`exclude_add`、`exclude_remove`、`failure_add`、`save_from_markdown`、`sync_moments`
 
 ### 5.5 Phase 3 P3 — 公式工具（15 个，辅助参考）
 
@@ -202,10 +202,10 @@ python -X utf8 -m mcp_server.server
 
 | 类别 | 数量 | 定位 |
 |------|------|------|
-| 只读工具（含 Wiki 检索 3 个 + guide 1 个） | 24 | **Wiki 工具是推理主轴，优先调用** |
-| 写入工具 | 16 | 事实档案 + 分析归档 + WCD 启动 |
+| 只读工具（含 Wiki 检索 2 个 + guide 1 个） | 23 | **Wiki 工具是推理主轴，优先调用** |
+| 写入工具 | 17 | 事实档案 + 分析归档 + WCD 启动 |
 | 公式工具（辅助参考） | 15 | chat-skills 遗产，核验而非套用 |
 | **总计** | **55** | — |
 
-> Wiki 工具：`wiki_search`、`wiki_read`、`skill_search`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
+> Wiki 工具：`wiki_search`、`wiki_read`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
 > guide 工具：11 个主题的操作指南，Agent 不确定流程时调用 `guide(topic)`。

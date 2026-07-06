@@ -49,7 +49,7 @@ def test_phase_distribution(tools):
     assert p0.issubset(tool_names), f"P0 缺少: {p0 - tool_names}"
     print(f"  [PASS] Phase 2 P0: {len(p0)} 个工具")
 
-    p1 = {"person_timeline", "person_signals", "person_evidence", "skill_search",
+    p1 = {"person_timeline", "person_signals", "person_evidence",
           "person_compare", "weekly_report", "person_moments_stats", "maintain_list",
           "events_scan", "events_save", "person_evaluate", "system_sync",
           "wcd_status", "wcd_start"}
@@ -57,9 +57,9 @@ def test_phase_distribution(tools):
     print(f"  [PASS] Phase 2 P1: {len(p1)} 个工具")
 
     p2 = {"contact_search", "sticker_scan", "sticker_list", "exclude_list",
-          "failure_list", "message_context", "contact_alias", "contact_merge",
-          "sticker_label", "exclude_add", "exclude_remove", "failure_add",
-          "save_from_markdown", "sync_moments"}
+          "failure_list", "message_context", "contact_alias", "contact_alias_remove",
+          "contact_merge", "sticker_label", "exclude_add", "exclude_remove",
+          "failure_add", "save_from_markdown", "sync_moments"}
     assert p2.issubset(tool_names), f"P2 缺少: {p2 - tool_names}"
     print(f"  [PASS] Phase 2 P2: {len(p2)} 个工具")
 

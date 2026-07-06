@@ -214,8 +214,8 @@ def index(wiki_root: Path) -> WikiIndex:
 
 @pytest.fixture
 def retriever(index: WikiIndex) -> WikiRetriever:
-    """WikiRetriever（不加载 skill-keywords.json）。"""
-    return WikiRetriever(index=index, skill_keywords_path=None)
+    """WikiRetriever。"""
+    return WikiRetriever(index=index)
 
 
 # ── WikiIndex 测试 ────────────────────────────────────────────────────

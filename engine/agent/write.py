@@ -89,10 +89,16 @@ def agent_events(name: str, scan: bool = False, disconnect_days: int = 7) -> str
         if scan and events:
             from engine.facts.people_archive import append_event
             written = 0
+            skipped = 0
             for e in events:
-                append_event(person, e.date, e.event_type.value, e.detail, my_wxid=config.my_wxid)
-                written += 1
-            parts.append(f"\n已写入 {written} 条事件到事实档案")
+                _, is_new = append_event(person, e.date, e.event_type.value, e.detail, my_wxid=config.my_wxid)
+                if is_new:
+                    written += 1
+                else:
+                    skipped += 1
+            parts.append(f"\n已写入 {written} 条新事件到事实档案")
+            if skipped:
+                parts.append(f"跳过 {skipped} 条重复事件")
         return "\n".join(parts)
     finally:
         conn.close()
@@ -111,7 +117,7 @@ def agent_save_analysis(
     metric_snapshot: dict | None = None,
     data_window: dict | None = None,
     changed_from_previous: str | None = None,
-) -> Path:
+) -> dict:
     from datetime import datetime as dt
     from pathlib import Path as P
     from engine.config import OUTPUTS_ANALYSIS_DIR
@@ -125,17 +131,39 @@ def agent_save_analysis(
                    "signals": signals or [], "next_step": next_step},
         "diagnosis": diagnosis, "strategy": strategy, "risks": risks or [],
         "skills_used": skills_used or [],
+        "evidence_refs": evidence_refs or [],
+        "metric_snapshot": metric_snapshot or {},
+        "data_window": data_window or {},
+        "changed_from_previous": changed_from_previous or "",
     }
-    if evidence_refs:
-        data["evidence_refs"] = evidence_refs
-    if metric_snapshot:
-        data["metric_snapshot"] = metric_snapshot
-    if data_window:
-        data["data_window"] = data_window
-    if changed_from_previous:
-        data["changed_from_previous"] = changed_from_previous
     latest_path = person_dir / "latest.yaml"
     previous_path = person_dir / "previous.yaml"
+    # 读取旧版本信息用于覆盖告知
+    previous_info: dict | None = None
+    changed_fields: list[str] = []
+    if latest_path.exists():
+        try:
+            old_stat = latest_path.stat()
+            with open(latest_path, encoding="utf-8") as f:
+                old_data = yaml.safe_load(f) or {}
+            previous_info = {
+                "path": str(latest_path),
+                "size": old_stat.st_size,
+                "generated_at": old_data.get("generated_at", ""),
+            }
+            old_stage = old_data.get("stage", {}) or {}
+            if (old_stage.get("stage") or "") != stage:
+                changed_fields.append("stage")
+            if old_stage.get("confidence", 0.0) != confidence:
+                changed_fields.append("confidence")
+            if (old_stage.get("reasoning") or "") != reasoning:
+                changed_fields.append("reasoning")
+            if (old_data.get("diagnosis") or "") != diagnosis:
+                changed_fields.append("diagnosis")
+            if (old_data.get("strategy") or "") != strategy:
+                changed_fields.append("strategy")
+        except Exception:
+            previous_info = {"path": str(latest_path), "size": 0, "generated_at": ""}
     if latest_path.exists():
         shutil.copy2(latest_path, previous_path)
     with open(latest_path, "w", encoding="utf-8") as f:
@@ -146,33 +174,110 @@ def agent_save_analysis(
     history_path = history_dir / f"{ts}.yaml"
     with open(history_path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
-    return latest_path
+    return {
+        "path": latest_path,
+        "previous_info": previous_info,
+        "changed_fields": changed_fields,
+        "history_path": history_path,
+    }
 
 # ---------------------------------------------------------------------------
 # agent_save_from_markdown — Markdown 保存分析
 # ---------------------------------------------------------------------------
 
+_SECTION_KEYWORDS: dict[str, list[str]] = {
+    "stage": ["场景理解", "阶段", "当前阶段", "关系阶段", "场景"],
+    "signals": ["关键信号分析", "关键信号", "信号", "IOI", "兴趣指标"],
+    "diagnosis": ["Wiki 框架诊断", "诊断", "wiki", "框架"],
+    "strategy": ["具体操作", "策略", "操作", "行动方案", "方案"],
+    "risks": ["核心风险", "风险", "禁忌", "注意事项"],
+    "reasoning": ["底层判断", "依据", "底层", "本质", "核心逻辑", "判断"],
+    "next_step": ["下一步", "行动", "建议行动", "操作建议", "后续行动", "计划"],
+}
+
+
+def _find_section(sections: dict[str, str], keywords: list[str]) -> str:
+    """按关键词匹配段名，优先精确匹配，回退到子串匹配。"""
+    for key, content in sections.items():
+        if key == "_header":
+            continue
+        for kw in keywords:
+            if key.lower() == kw.lower():
+                return content
+    for key, content in sections.items():
+        if key == "_header":
+            continue
+        key_lower = key.lower()
+        for kw in keywords:
+            if kw.lower() in key_lower:
+                return content
+    return ""
+
+
+def _parse_list(text: str) -> list[str]:
+    """从文本解析列表项，兼容 '- '、'* ' 前缀和 Markdown 表格。"""
+    items: list[str] = []
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            items.append(stripped[2:].strip())
+            i += 1
+            continue
+        if stripped.startswith("|"):
+            table_rows: list[list[str]] = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = lines[i].strip()
+                cells = [c.strip() for c in row.strip("|").split("|")]
+                table_rows.append(cells)
+                i += 1
+            for j, cells in enumerate(table_rows):
+                if j < 2:
+                    continue
+                non_empty = [c for c in cells if c]
+                if non_empty:
+                    items.append(" - ".join(non_empty))
+            continue
+        i += 1
+    return items
+
+
 def agent_save_from_markdown(person: IdentityPerson, markdown_text: str) -> Path:
     sections = _extract_sections(markdown_text)
-    stage_text = sections.get("阶段", "").strip()
+
+    stage_text = _find_section(sections, _SECTION_KEYWORDS["stage"]).strip()
     stage_name = stage_text
     conf = 0.0
-    conf_match = re.search(r"置信度[:\s]*(\d+(?:\.\d+)?)%?", stage_text)
+    conf_match = re.search(r"置信度[\s:：]*(\d+(?:\.\d+)?)\s*%?", stage_text)
     if conf_match:
         raw = float(conf_match.group(1))
         conf = raw / 100 if raw > 1 else raw
         stage_name = stage_text[: conf_match.start()].strip().rstrip("（(").strip()
-    signals_raw = sections.get("信号", "")
-    signals = [line.lstrip("- ").strip() for line in signals_raw.split("\n") if line.strip().startswith("- ")]
-    next_step = sections.get("下一步", "").strip()
-    risks_raw = sections.get("风险", "")
-    risks = [line.lstrip("- ").strip() for line in risks_raw.split("\n") if line.strip().startswith("- ")]
-    yaml_path = agent_save_analysis(
+
+    signals_raw = _find_section(sections, _SECTION_KEYWORDS["signals"])
+    signals = _parse_list(signals_raw)
+
+    next_step = _find_section(sections, _SECTION_KEYWORDS["next_step"]).strip()
+    risks_raw = _find_section(sections, _SECTION_KEYWORDS["risks"])
+    risks = _parse_list(risks_raw)
+
+    diagnosis = _find_section(sections, _SECTION_KEYWORDS["diagnosis"]).strip()
+    strategy = _find_section(sections, _SECTION_KEYWORDS["strategy"]).strip()
+    reasoning = _find_section(sections, _SECTION_KEYWORDS["reasoning"]).strip()
+
+    if not stage_name:
+        print(f"[save_from_markdown] warning: stage 为空，已解析段名: {list(k for k in sections if k != '_header')}")
+    if conf == 0.0 and "置信度" not in markdown_text:
+        print(f"[save_from_markdown] warning: confidence 为 0，报告中未找到 '置信度' 字样")
+
+    save_result = agent_save_analysis(
         person, stage=stage_name, confidence=conf,
-        reasoning=sections.get("依据", "").strip(), signals=signals,
-        next_step=next_step, diagnosis=sections.get("诊断", "").strip(),
-        strategy=sections.get("策略", "").strip(), risks=risks,
+        reasoning=reasoning, signals=signals,
+        next_step=next_step, diagnosis=diagnosis,
+        strategy=strategy, risks=risks,
     )
+    yaml_path = save_result["path"]
     # 同时保存原始 Markdown 报告到 latest.md
     md_path = yaml_path.parent / "latest.md"
     with open(md_path, "w", encoding="utf-8") as f:

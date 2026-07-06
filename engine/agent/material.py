@@ -9,23 +9,6 @@ from engine.config import Config, ROOT_DIR, OUTPUTS_ANALYSIS_DIR
 from engine.agent.core import _build_cross_refs, _validate_path
 
 
-def _search_skills(query_terms: list[str], results: list[dict]) -> None:
-    from engine.agent.registry import SkillRegistry
-    registry = SkillRegistry(ROOT_DIR / "skills")
-    registry.scan()
-    query_text = " ".join(query_terms)
-    matches = registry.search_by_triggers(query_text)
-    for name, score in matches[:10]:
-        meta = registry.get(name)
-        if meta:
-            results.append({
-                "type": "skill", "title": meta.display_name or name,
-                "path": str(meta.path.relative_to(ROOT_DIR)).replace("\\", "/"),
-                "reason": f"trigger match (score={score:.1f})",
-                "keywords": ", ".join(query_terms), "score": score, "priority": 1,
-            })
-
-
 def _search_wiki(query_terms: list[str], results: list[dict]) -> None:
     from engine.knowledge.wiki_index import WikiIndex
     from engine.knowledge.wiki_retriever import WikiRetriever
@@ -35,7 +18,7 @@ def _search_wiki(query_terms: list[str], results: list[dict]) -> None:
     retriever = WikiRetriever(index)
     query_text = " ".join(query_terms)
     snippets = retriever.retrieve(
-        query_text=query_text, task_type="ask", selected_skills=None, max_chars=5000, max_pages=10,
+        query_text=query_text, task_type="ask", max_chars=5000, max_pages=10,
     )
     for s in snippets:
         raw_path = s.path
@@ -97,7 +80,6 @@ def _search_kb(query_terms: list[str], results: list[dict]) -> None:
 def agent_material_search(conn: sqlite3.Connection, config: Config, query: str) -> str:
     results: list[dict] = []
     query_terms = query.lower().split()
-    _search_skills(query_terms, results)
     _search_wiki(query_terms, results)
     _search_analysis(query_terms, results)
     _search_kb(query_terms, results)

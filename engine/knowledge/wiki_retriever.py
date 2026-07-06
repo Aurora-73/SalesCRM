@@ -1,13 +1,11 @@
 """Wiki 检索器。
 
-根据查询文本、任务类型、Skill 等结构化输入检索 Wiki 页面。
+根据查询文本、任务类型、阶段等结构化输入检索 Wiki 页面。
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from engine.knowledge.wiki_index import WikiIndex, WikiPage
 
@@ -46,30 +44,13 @@ _TASK_TYPE_BUDGET: dict[str, tuple[int, int]] = {
 class WikiRetriever:
     """Wiki 检索器。"""
 
-    def __init__(self, index: WikiIndex, skill_keywords_path: str | Path | None = None):
+    def __init__(self, index: WikiIndex):
         self._index = index
-        self._skill_keyword_map: dict[str, dict] = {}
-        if skill_keywords_path:
-            self._load_skill_keywords(skill_keywords_path)
-        else:
-            # 自动探测：从 engine/knowledge/ 向上两级到项目根，再找 skills/skill-keywords.json
-            default_path = Path(__file__).resolve().parent.parent.parent / "skills" / "skill-keywords.json"
-            if default_path.exists():
-                self._load_skill_keywords(default_path)
-
-    def _load_skill_keywords(self, path: str | Path) -> None:
-        """加载 skill-keywords.json。"""
-        try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
-            self._skill_keyword_map = data
-        except Exception:
-            self._skill_keyword_map = {}
 
     def retrieve(
         self,
         query_text: str,
         task_type: str = "analyze",
-        selected_skills: list[str] | None = None,
         stage: str = "",
         focus: str = "",
         max_chars: int | None = None,
@@ -80,7 +61,6 @@ class WikiRetriever:
         Args:
             query_text: 查询文本（用户输入、最近聊天、人物档案摘要等拼接）
             task_type: 任务类型（reply/meet/ask/analyze）
-            selected_skills: 已选中的 Skill 名称列表
             stage: 当前销售阶段
             focus: 分析聚焦点
             max_chars: 最大字符数（默认按 task_type）
@@ -109,7 +89,7 @@ class WikiRetriever:
         for page in pages:
             if page.page_type not in allowed_types:
                 continue
-            score = self._score_page(page, expanded_query, task_type, selected_skills, stage, focus_keywords)
+            score = self._score_page(page, expanded_query, task_type, stage, focus_keywords)
             if score > 0:
                 scored.append((score, page))
 
@@ -148,7 +128,6 @@ class WikiRetriever:
         page: WikiPage,
         query_text: str,
         task_type: str,
-        selected_skills: list[str] | None,
         stage: str,
         focus_keywords: list[str],
     ) -> float:
@@ -200,25 +179,6 @@ class WikiRetriever:
         # stage 匹配（强权重——阶段是核心过滤条件）
         if stage and stage in page.stages:
             score += 5
-
-        # related_skills 匹配（自动推断，粗粒度）
-        if selected_skills:
-            skill_hits = sum(1 for s in selected_skills if s in page.related_skills)
-            score += min(skill_hits, 2) * 2  # 最多 +4
-
-        # skill-keywords 精准匹配（手工映射，细粒度）
-        if selected_skills and self._skill_keyword_map:
-            for skill in selected_skills:
-                kw = self._skill_keyword_map.get(skill, {})
-                concepts = kw.get("wiki_concepts", [])
-                topics = kw.get("wiki_topics", [])
-                scenarios = kw.get("wiki_scenarios", [])
-                if page.title in concepts:
-                    score += 5
-                elif page.title in scenarios:
-                    score += 4
-                elif any(t in page.title for t in topics):
-                    score += 3
 
         # confidence 为 EXTRACTED
         if page.confidence == "EXTRACTED":

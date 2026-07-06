@@ -123,11 +123,17 @@ def wiki_search(query: str) -> str:
         conn.close()
 
 
-def save_analysis(name: str, **kwargs) -> str:
-    """保存分析结论到 YAML。"""
+def save_analysis(name: str, **kwargs) -> dict:
+    """保存分析结论到 YAML。返回 dict 含 path/previous_info/changed_fields/history_path。"""
     conn, config, person = _resolve(name)
     try:
-        return str(_agent_save_analysis(person, **kwargs))
+        result = _agent_save_analysis(person, **kwargs)
+        return {
+            "path": str(result["path"]),
+            "previous_info": result["previous_info"],
+            "changed_fields": result["changed_fields"],
+            "history_path": str(result["history_path"]),
+        }
     finally:
         conn.close()
 
@@ -235,8 +241,7 @@ def wiki_search_data(query: str, limit: int = 5) -> dict:
         results: list[dict] = []
         query_terms = query.lower().split()
 
-        from engine.agent.material import _search_skills, _search_wiki, _search_analysis, _search_kb
-        _search_skills(query_terms, results)
+        from engine.agent.material import _search_wiki, _search_analysis, _search_kb
         _search_wiki(query_terms, results)
         _search_analysis(query_terms, results)
         _search_kb(query_terms, results)
@@ -295,42 +300,6 @@ def signals(name: str) -> dict:
             "basic_signals": basic_signals,
             "manipulation_signals": manipulation_signals,
             "moments_signals": moments_signals,
-        }
-    finally:
-        conn.close()
-
-
-def skill_search(query: str, limit: int = 5) -> dict:
-    """结构化技能搜索 — 返回 dict 含匹配的技能列表。
-
-    当 skills/ 目录为空或不存在时，自动 fallback 到 wiki_search，
-    在结果中标注 source="wiki_fallback"。
-    """
-    conn, config = _get_conn()
-    try:
-        from engine.agent.material import _search_skills
-        results: list[dict] = []
-        query_terms = query.lower().split()
-        _search_skills(query_terms, results)
-        results.sort(key=lambda r: (r.get("priority", 99), -r.get("score", 0)))
-
-        if not results:
-            wiki_results = wiki_search_data(query, limit=limit)
-            wiki_items = wiki_results.get("results", [])
-            for w in wiki_items:
-                w["source"] = "wiki_fallback"
-            return {
-                "query": query,
-                "total_results": len(wiki_items),
-                "results": wiki_items[:limit],
-                "fallback": "wiki",
-                "note": "skills/ 目录为空，已 fallback 到 wiki_search",
-            }
-
-        return {
-            "query": query,
-            "total_results": len(results),
-            "results": results[:limit],
         }
     finally:
         conn.close()
@@ -409,7 +378,7 @@ __all__ = [
     # 只读（结构化）
     "brief_data", "chat_data", "message_context_data",
     "rank_data", "status_data", "wiki_search_data",
-    "timeline", "signals", "skill_search",
+    "timeline", "signals",
     # 写入
     "note", "date", "evaluate", "events",
     "save_analysis", "save_from_markdown",

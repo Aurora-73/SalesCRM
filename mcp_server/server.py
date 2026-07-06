@@ -1,7 +1,7 @@
 """MCP 服务器入口。
 
 使用 FastMCP 在 stdio 上提供工具服务。
-SalesCRM 版本：54 个工具（24 只读 + 15 写入 + 15 公式）。
+SalesCRM 版本：55 个工具（23 只读含 guide + 17 写入 + 15 公式）。
 """
 
 import sys
@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 from fastmcp import FastMCP
 
-from mcp_server import tools_read, tools_write, tools_formula, tools_guide
+from mcp_server import tools_read, tools_write, tools_formula, tools_guide, tools_config
 
 mcp = FastMCP("SalesCRM")
 
@@ -38,6 +38,19 @@ mcp.tool(
                "reference/stickers（贴纸系统）",
     annotations={"readOnlyHint": True},
 )(tools_guide.guide_func)
+
+# ── 注册配置工具（后端切换，不重启即可生效）───────────────────────
+
+mcp.tool(
+    name="get_backend",
+    description="查看当前数据后端配置（wcd/weflow）",
+    annotations={"readOnlyHint": True},
+)(tools_config.get_backend)
+
+mcp.tool(
+    name="set_backend",
+    description="切换数据后端（wcd 或 weflow），可选同时更新 base_url 和 token。写入 config.yaml 后即时生效，不需要重启 MCP Server",
+)(tools_config.set_backend)
 
 # ── Phase 1: 核心只读工具（6 个）──────────────────────────────
 
@@ -107,7 +120,9 @@ mcp.tool(
 
 mcp.tool(
     name="person_save_analysis",
-    description="【可选】保存结构化分析到 YAML（用于 person_compare 对比）。旧版本自动转为 previous。"
+    description="⚠️【覆盖写入·可选】保存结构化分析到 YAML（用于 person_compare 对比）。"
+               "覆盖 latest.yaml，旧版本自动转为 previous.yaml，同时 history/ 目录保留带时间戳的历史副本。"
+               "返回 previous_info（被覆盖的旧版本路径/大小/生成时间）和 changed_fields（本次变更字段），调用方可据此告知用户。"
                "如需保存完整 Markdown 报告请用 save_from_markdown。"
                "参数：stage（阶段）/ confidence（置信度 0-1）/ reasoning（推理过程）/ diagnosis（诊断）/ "
                "strategy（策略）/ risks（风险列表）/ signals（信号列表）/ "
@@ -133,12 +148,6 @@ mcp.tool(
     description="获取事实档案（已记录的笔记、评价、会面等客观事实）",
     annotations={"readOnlyHint": True},
 )(tools_read.person_evidence)
-
-mcp.tool(
-    name="skill_search",
-    description="搜索技能包（分析方法论和技能）",
-    annotations={"readOnlyHint": True},
-)(tools_read.skill_search_tool)
 
 mcp.tool(
     name="person_compare",
@@ -179,15 +188,29 @@ mcp.tool(
 mcp.tool(
     name="wcd_start",
     description="启动 WCD 后端进程并等待健康检查通过。如果 WCD 已在运行则直接返回成功。"
-               "启动后进程持续运行，不获取密钥（密钥缓存自动加载）。"
+               "默认等待 90s（WCD 冷启动通常需要 40-60s）。超时返回 process_alive 字段区分"
+               "'进程仍在运行但健康检查未就绪'和'进程已退出'两种情况。"
                "使用场景：wcd_status 显示 offline 时调此工具启动后端",
 )(tools_read.wcd_start)
+
+mcp.tool(
+    name="weflow_status",
+    description="检查 WeFlow 后端在线状态（只读检测，不启动进程）。如果显示 offline，请调 weflow_start 启动后端",
+    annotations={"readOnlyHint": True},
+)(tools_read.weflow_status)
+
+mcp.tool(
+    name="weflow_start",
+    description="启动 WeFlow 后端进程（D:\\WeFlow\\WeFlow.exe）并等待健康检查通过。如果 WeFlow 已在运行则直接返回成功。默认等待 60s",
+)(tools_read.weflow_start)
 
 # ── Phase 2 P1: events 拆分 + 同步 + 评价（3 个写入）──────────
 
 mcp.tool(
     name="events_save",
-    description="⚠️【先扫后写】检测并写入关系事件到事实档案。必须先调 events_scan 展示检测结果，用户确认后再调本工具写入。不可跳过 scan 步骤",
+    description="检测并写入关系事件到事实档案（一步完成检测+写入）。"
+               "建议先调 events_scan 展示结果供用户确认，但非强制——直接调用本工具会自动检测并写入。"
+               "disconnect_days 控制断联判定阈值（默认 7 天）",
 )(tools_write.events_save)
 
 mcp.tool(
@@ -242,8 +265,13 @@ mcp.tool(
 
 mcp.tool(
     name="contact_alias",
-    description="为联系人添加别名",
+    description="为联系人添加别名（写错可调 contact_alias_remove 删除后重设）",
 )(tools_write.contact_alias)
+
+mcp.tool(
+    name="contact_alias_remove",
+    description="删除联系人的别名（alias_type 必填，value 空则删该类型全部）",
+)(tools_write.contact_alias_remove)
 
 mcp.tool(
     name="contact_merge",

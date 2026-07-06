@@ -30,7 +30,7 @@ def _format_person_md(person: IdentityPerson) -> str:
 
 def agent_contact(query: str, action: str = "search", **kwargs) -> str:
     from engine.identity import (
-        resolve_contact, add_alias, set_display_name,
+        resolve_contact, add_alias, remove_alias, set_display_name,
         link_account, merge_people, audit_identity, bootstrap_identity,
     )
     from engine.facts import ensure_people_archives_migrated, rename_person_archive
@@ -66,6 +66,19 @@ def agent_contact(query: str, action: str = "search", **kwargs) -> str:
             ok = add_alias(conn, result.person.id, kwargs.get("type", ""), kwargs.get("value", ""),
                            sensitivity=kwargs.get("sensitivity", "normal"))
             return "已添加别名" if ok else "别名已存在或添加失败"
+        if action == "remove_alias":
+            result = resolve_contact(conn, query)
+            if not result.person:
+                return f"未找到联系人: {query}"
+            deleted = remove_alias(
+                conn, result.person.id,
+                kwargs.get("type", ""),
+                value=kwargs.get("value"),
+            )
+            if deleted:
+                scope = f"type={kwargs.get('type', '')}, value={kwargs.get('value', '(全部)')}"
+                return f"已删除 {deleted} 条别名（{scope}）"
+            return f"未找到匹配的别名（type={kwargs.get('type', '')}, value={kwargs.get('value', '(全部)')}）"
         if action == "link":
             result = resolve_contact(conn, query)
             if not result.person:

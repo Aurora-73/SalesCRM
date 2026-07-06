@@ -16,7 +16,6 @@
 | `person_timeline` | `timeline(name, max_events)` | dict | 关系时间线 |
 | `person_signals` | `signals(name)` | dict | 信号详情 |
 | `person_evidence` | `evidence(name, section, since_date)` | dict | 事实档案 |
-| `skill_search` | `skill_search(query, limit)` | dict | 技能搜索 |
 | `person_compare` | `compare_analysis(name)` | dict | 历史分析对比 |
 | `weekly_report` | `weekly(deep)` | dict | 周报 |
 | `person_moments_stats` | `moments_stats(name)` | dict | 朋友圈统计 |

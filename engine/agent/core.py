@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 from pathlib import Path
@@ -18,7 +19,6 @@ from engine.identity import IdentityPerson
 # ---------------------------------------------------------------------------
 
 _ALLOWED_PREFIXES = (
-    "skills/",
     "docs/wiki/",
     "docs/kb/",
     "data/outputs/analysis/",
@@ -85,15 +85,27 @@ def _find_fact_archive(person: IdentityPerson) -> Path | None:
     return None
 
 
+def _normalize_section_name(name: str) -> str:
+    """归一化段名：去掉前导编号（一、 1. 1、 等）和尾部括号注释。"""
+    name = re.sub(r'^[一二三四五六七八九十百]+[、.．]\s*', '', name)
+    name = re.sub(r'^\d+[、.．)]\s*', '', name)
+    name = re.sub(r'[（(][^）)]*[）)]\s*$', '', name)
+    return name.strip()
+
+
 def _extract_sections(text: str) -> dict[str, str]:
-    """按 ## 标题分割 Markdown 为 {section_name: content}。"""
+    """按 ## 标题分割 Markdown 为 {section_name: content}。
+
+    段名经过归一化：去掉前导编号（一、 1.）和尾部括号注释，
+    使 '## 一、场景理解（至少3句）' 和 '## 场景理解' 都能命中同一个 key。
+    """
     sections: dict[str, str] = {}
     current_name = "_header"
     current_lines: list[str] = []
     for line in text.split("\n"):
         if line.startswith("## "):
             sections[current_name] = "\n".join(current_lines).strip()
-            current_name = line[3:].strip()
+            current_name = _normalize_section_name(line[3:].strip())
             current_lines = []
         else:
             current_lines.append(line)

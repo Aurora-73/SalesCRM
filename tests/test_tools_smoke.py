@@ -208,7 +208,7 @@ class TestStructuredTools:
                 metric_snapshot={"composite": 0.32, "base_score": 0.45},
                 data_window={"from_date": "2026-06-01", "to_date": "2026-06-29"},
                 changed_from_previous="阶段从 平淡期 → 冷淡期",
-            )
+            )["path"]
             assert path.is_file()
             import yaml
             with open(path, encoding="utf-8") as f:
@@ -220,5 +220,5 @@ class TestStructuredTools:
             assert saved["data_window"]["from_date"] == "2026-06-01"
             assert saved["changed_from_previous"] == "阶段从 平淡期 → 冷淡期"
             # 不带新字段的调用也应正常工作
-            path2 = agent_save_analysis(result.person, stage="平淡期", confidence=0.5, reasoning="test")
+            path2 = agent_save_analysis(result.person, stage="平淡期", confidence=0.5, reasoning="test")["path"]
             assert path2.is_file()

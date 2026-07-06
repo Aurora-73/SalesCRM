@@ -268,6 +268,34 @@ def add_alias(
     return inserted
 
 
+def remove_alias(
+    conn: sqlite3.Connection,
+    person_id: str,
+    alias_type: str,
+    value: str | None = None,
+) -> int:
+    """删除别名。value=None 时删除该类型的所有别名，返回删除条数。"""
+    person = get_person(conn, person_id)
+    if not person:
+        return 0
+    if value:
+        norm = normalize_alias(value)
+        cur = conn.execute(
+            "DELETE FROM contact_aliases WHERE person_id = ? AND alias_type = ? AND value_norm = ?",
+            (person_id, alias_type, norm),
+        )
+    else:
+        cur = conn.execute(
+            "DELETE FROM contact_aliases WHERE person_id = ? AND alias_type = ?",
+            (person_id, alias_type),
+        )
+    deleted = cur.rowcount
+    conn.commit()
+    if deleted:
+        _log(conn, "alias_remove", person_id, {"type": alias_type, "value": value, "deleted": deleted})
+    return deleted
+
+
 def set_display_name(conn: sqlite3.Connection, person_id: str, display_name: str) -> bool:
     if not get_person(conn, person_id):
         return False

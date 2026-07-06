@@ -9,7 +9,7 @@ from typing import Optional
 from engine.tools import (
     brief_data, chat_data, metrics, rank_data, status_data,
     wiki_search_data, wiki_show,
-    timeline, signals, skill_search,
+    timeline, signals,
     evidence, compare_analysis, weekly, moments_stats,
     maintain_candidates, format_candidates,
     events, check_keys,
@@ -166,19 +166,6 @@ def person_evidence(name: str, section: str = "all", since_date: Optional[str] =
         }
     except Exception as e:
         return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
-
-
-def skill_search_tool(query: str, limit: int = 5) -> dict:
-    """搜索技能包。
-
-    什么时候用：需要查找可用的分析技能和方法论时。
-    返回什么：dict 含 query/total_results/results 列表。
-    边界是什么：query 为搜索关键词，limit 控制返回数量。
-    """
-    try:
-        return skill_search(query, limit=limit)
-    except Exception as e:
-        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查查询参数"}
 
 
 def person_compare(name: str) -> dict:
@@ -372,12 +359,13 @@ def wcd_status() -> dict:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WCD 配置"}
 
 
-def wcd_start(timeout: int = 30) -> dict:
+def wcd_start(timeout: int = 90) -> dict:
     """启动 WCD 后端进程并等待健康检查通过。
 
     什么时候用：wcd_status 显示 offline 时调此工具启动后端。
     返回什么：dict 含 success/message/already_running/pid 字段。
     边界是什么：如果 WCD 已在运行，直接返回成功。启动是异步的，进程会持续运行。
+    默认 timeout=90s（WCD 后端冷启动通常需要 40-60s，留足余量）。
     密钥安全：不获取密钥，只启动进程。密钥缓存会自动加载。
     """
     import sys
@@ -461,11 +449,13 @@ def wcd_start(timeout: int = 30) -> dict:
                         "suggestion": "请手动在 WCD 目录运行 uv run main.py 查看错误信息",
                     }
 
+            process_alive = proc.poll() is None
             return {
                 "success": False,
                 "pid": proc.pid,
-                "message": f"WCD 后端启动超时（{timeout}s）",
-                "suggestion": "进程已启动但健康检查未通过，请手动检查",
+                "process_alive": process_alive,
+                "message": f"WCD 后端启动超时（{timeout}s），进程{'仍在运行' if process_alive else '已退出'}",
+                "suggestion": "进程仍在运行则健康检查未就绪，可调 wcd_status 复查；进程已退出则需手动在 WCD 目录运行 uv run main.py 查看错误",
             }
         finally:
             conn.close()
@@ -477,6 +467,131 @@ def wcd_start(timeout: int = 30) -> dict:
         }
     except Exception as e:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WCD 配置和依赖"}
+
+
+def weflow_status() -> dict:
+    """检查 WeFlow 后端在线状态。
+
+    什么时候用：同步前确认 WeFlow 是否已启动。
+    返回什么：dict 含 online/message/suggestion 字段。
+    边界是什么：只读检查，不启动进程。
+    """
+    try:
+        from engine.importers.weflow_client import WeFlowClient
+        from engine.agent.core import _get_conn
+        conn, config = _get_conn()
+        try:
+            if config.weflow.backend != "weflow":
+                return {
+                    "online": False,
+                    "backend": config.weflow.backend,
+                    "message": f"当前后端是 {config.weflow.backend}，非 WeFlow",
+                    "suggestion": "无需 WeFlow 检查",
+                }
+            client = WeFlowClient(
+                base_url=config.weflow.base_url,
+                token=config.weflow.token,
+                timeout=5,
+            )
+            online = client.health()
+            if online:
+                return {
+                    "online": True,
+                    "message": "WeFlow 后端在线，可以正常同步",
+                    "suggestion": None,
+                }
+            return {
+                "online": False,
+                "message": "WeFlow 后端未响应",
+                "suggestion": "请手动启动 WeFlow（D:\\WeFlow\\WeFlow.exe），或用 weflow_start 工具",
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WeFlow 配置"}
+
+
+def weflow_start(timeout: int = 60) -> dict:
+    """启动 WeFlow 后端进程并等待健康检查通过。
+
+    什么时候用：weflow_status 显示 offline 时调此工具启动 WeFlow。
+    返回什么：dict 含 success/message/already_running 字段。
+    边界是什么：如果 WeFlow 已在运行，直接返回成功。启动后进程持续运行。
+    """
+    import subprocess
+    import time
+    from pathlib import Path
+
+    try:
+        from engine.importers.weflow_client import WeFlowClient
+        from engine.agent.core import _get_conn
+        conn, config = _get_conn()
+        try:
+            if config.weflow.backend != "weflow":
+                return {
+                    "success": False,
+                    "message": f"当前后端是 {config.weflow.backend}，非 WeFlow，无需启动",
+                }
+
+            client = WeFlowClient(
+                base_url=config.weflow.base_url,
+                token=config.weflow.token,
+                timeout=5,
+            )
+
+            # 1. 已在运行则直接返回
+            if client.health():
+                return {
+                    "success": True,
+                    "already_running": True,
+                    "message": "WeFlow 后端已在运行，无需重复启动",
+                }
+
+            # 2. 定位 WeFlow.exe
+            weflow_exe = Path("D:/WeFlow/WeFlow.exe")
+            if not weflow_exe.exists():
+                return {
+                    "success": False,
+                    "message": f"WeFlow 不存在: {weflow_exe}",
+                    "suggestion": "请确认 WeFlow 已安装到 D:\\WeFlow\\",
+                }
+
+            # 3. 启动进程
+            proc = subprocess.Popen(
+                [str(weflow_exe)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            # 4. 轮询健康检查
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                time.sleep(2)
+                if client.health():
+                    elapsed = time.time() - start_time
+                    return {
+                        "success": True,
+                        "already_running": False,
+                        "message": f"WeFlow 后端启动成功（耗时 {elapsed:.1f}s）",
+                    }
+                if proc.poll() is not None:
+                    return {
+                        "success": False,
+                        "message": f"WeFlow 进程已退出（返回码: {proc.returncode}）",
+                        "suggestion": "请手动运行 D:\\WeFlow\\WeFlow.exe 查看错误信息",
+                    }
+
+            process_alive = proc.poll() is None
+            return {
+                "success": False,
+                "process_alive": process_alive,
+                "message": f"WeFlow 启动超时（{timeout}s），进程{'仍在运行' if process_alive else '已退出'}",
+                "suggestion": "进程仍在运行则 WeFlow 可能还在加载，可调 weflow_status 复查",
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 WeFlow 配置"}
 
 
 # ── Phase 2 P2: contact/sticker/exclude/failure 拆分 ─────────

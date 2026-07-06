@@ -7,7 +7,7 @@ wechat_export/
 apps/analysis-output/
 
 # 新系统数据目录 — 显式列出敏感项（data/ 整目录不忽略，安全文件默认被跟踪）
-
+contest/
 exchange/
 # data 会有独立仓库，隐私数据，不适合放一起
 data/

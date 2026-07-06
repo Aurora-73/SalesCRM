@@ -65,7 +65,6 @@ python -X utf8 -m pytest mcp_server/tests/ -v
 | `person_timeline` | 客户关系时间线 |
 | `person_signals` | 信号详情（基础+操控+朋友圈） |
 | `person_evidence` | 事实档案 |
-| `skill_search` | 搜索技能包 |
 | `person_compare` | 对比历史分析变化 |
 | `weekly_report` | 周报 |
 | `person_moments_stats` | 朋友圈互动统计 |
