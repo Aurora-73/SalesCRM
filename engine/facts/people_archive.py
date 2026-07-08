@@ -78,10 +78,10 @@ def append_event(
     *,
     my_wxid: str = "",
 ) -> tuple[Path, bool]:
-    """将事件写入事实档案的关系时间线。返回 (path, is_new)：is_new=False 表示重复跳过。"""
+    """将事件写入事实档案的客户时间线。返回 (path, is_new)：is_new=False 表示重复跳过。"""
     path = get_person_archive_path(person, my_wxid=my_wxid)
     content = _load_or_init_archive(path, person)
-    section = "## 关系时间线"
+    section = "## 客户时间线"
     content = _ensure_section(content, section)
     entry = f"- [{event_date}] {event_type}: {detail}"
     if _event_entry_exists(content, section, entry):
@@ -182,7 +182,7 @@ def _initial_archive(person: IdentityPerson) -> str:
         f"> 微信昵称：{nickname}\n\n"
         f"## 基本信息\n\n"
         f"## 数据概览\n\n"
-        f"## 关系时间线\n\n"
+        f"## 客户时间线\n\n"
         f"## 当前状态\n\n"
         f"## 关键信息\n\n"
         f"## Dates\n\n"

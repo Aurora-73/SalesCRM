@@ -24,15 +24,15 @@ _PRODUCTID_PATTERN = re.compile(r'productid\s*=\s*"([^"]*)"')
 class Sticker:
     md5: str
     label: str = ""
-    emotion: str = ""          # positive / negative / neutral
-    content_type: str = ""     # animal / text / reaction / meme / abstract
+    emotion: str = ""
+    content_type: str = ""
     width: int = 0
     height: int = 0
     cdn_url: str = ""
-    product_id: str = ""       # 贴纸包 ID（空=自定义）
+    product_id: str = ""
     frequency: int = 0
     first_seen: int = 0
-    auto_detected: str = ""    # JSON
+    auto_detected: str = ""
     user_verified: int = 0
 
     def to_dict(self) -> dict:
@@ -87,7 +87,6 @@ def scan_stickers(conn: sqlite3.Connection, private_only: bool = False) -> dict:
             "WHERE type = 47 AND raw_content IS NOT NULL"
         ).fetchall()
 
-    # 统计频率和首次出现时间
     freq: dict[str, int] = {}
     first_seen: dict[str, int] = {}
     metadata: dict[str, dict] = {}
@@ -102,7 +101,6 @@ def scan_stickers(conn: sqlite3.Connection, private_only: bool = False) -> dict:
         ts = r["timestamp"] or 0
         if md5 not in first_seen or ts < first_seen[md5]:
             first_seen[md5] = ts
-        # 提取元数据（只需一次）
         if md5 not in metadata:
             w = _WIDTH_PATTERN.search(raw)
             h = _HEIGHT_PATTERN.search(raw)
@@ -115,7 +113,6 @@ def scan_stickers(conn: sqlite3.Connection, private_only: bool = False) -> dict:
                 "product_id": pid.group(1) if pid else "",
             }
 
-    # 写入数据库
     new_count = 0
     updated_count = 0
     for md5, count in freq.items():

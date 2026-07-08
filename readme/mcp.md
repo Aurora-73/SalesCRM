@@ -194,7 +194,7 @@ python -X utf8 -m mcp_server.server
 | 7 | MCP 测试全部通过 | ✅ PASS（10/10） |
 | 8 | 现有测试无回归 | ✅ PASS |
 | 9 | guide 工具 11 主题可调用 | ✅ PASS |
-| 10 | 无 loveMentor / 恋爱表述 | ✅ PASS |
+| 10 | 无恋爱场景表述 | ✅ PASS |
 
 ---
 

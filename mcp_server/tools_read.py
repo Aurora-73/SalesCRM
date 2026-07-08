@@ -9,7 +9,7 @@ from typing import Optional
 from engine.tools import (
     brief_data, chat_data, metrics, rank_data, status_data,
     wiki_search_data, wiki_show, wiki_context_data,
-    timeline, signals,
+    timeline, signals, stage_data,
     evidence, compare_analysis, weekly, moments_stats,
     maintain_candidates, format_candidates,
     events, check_keys,
@@ -183,6 +183,25 @@ def person_signals(name: str) -> dict:
         return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
 
 
+def person_stage(name: str) -> dict:
+    """销售阶段自动识别 — 基于指标+事件+失败档案推断当前销售阶段。
+
+    什么时候用：需要快速判断与客户的销售进展阶段、获取推进建议时。
+    返回什么：dict 含 current_stage/next_stage/advancement_signals/blockers/
+    is_stagnant/entered_at/days_in_current_stage。
+    阶段定义（9 个）：未识别 → 线索 → 初步接触 → 深入沟通 → 已会面 →
+    持续跟进 → 方案推进 → 签约确认 → 退出/失败。
+    边界是什么：name 必填；识别基于客观数据（消息量、活跃天、信号等级、事件），
+    不读取主观分析结论。
+    """
+    try:
+        return stage_data(name)
+    except ValueError as e:
+        return {"error": "PERSON_NOT_FOUND", "message": str(e), "suggestion": "请检查客户姓名是否正确"}
+    except Exception as e:
+        return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查数据库连接"}
+
+
 def person_evidence(name: str, section: str = "all", since_date: Optional[str] = None) -> dict:
     """获取事实档案（timeline/evaluations/notes/dates/all）。
 
@@ -265,7 +284,7 @@ _REASON_PRIORITY = {
 
 _REASON_ACTION = {
     "兴趣下降": "重新建立联系，分享行业资讯，避免关系冷却",
-    "意向未推进": "推进关系，发起约见或方案展示，抓住意向期",
+    "意向未推进": "推进关系，发起拜访或方案展示，抓住意向期",
     "高潜力未投入": "主动联系，投入更多关注，测试对方反应",
     "需关注": "保持联系，观察信号变化，避免过度投入",
 }
@@ -441,12 +460,15 @@ def wcd_start(timeout: int = 90) -> dict:
                     "message": "WCD 后端已在运行，无需重复启动",
                 }
 
-            # 2. 定位 WCD 目录（项目本地或共享路径）
+            # 2. 定位 WCD 目录（项目本地优先，其次查找同级共享路径）
             project_root = Path(__file__).resolve().parent.parent
             wcd_dir = project_root / "_reference" / "WeChatDataAnalysis"
             if not wcd_dir.exists():
-                # 尝试 loveMentor 共享路径
-                alt_dir = Path("E:/Code/loveMentor/_reference/WeChatDataAnalysis")
+                # 尝试同级项目共享路径
+                alt_dir = project_root.parent / "_reference" / "WeChatDataAnalysis"
+                if not alt_dir.exists():
+                    # 尝试 Code 目录下的共享路径
+                    alt_dir = Path("E:/Code/_reference/WeChatDataAnalysis")
                 if alt_dir.exists():
                     wcd_dir = alt_dir
                 else:

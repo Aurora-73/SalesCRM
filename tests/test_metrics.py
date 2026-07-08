@@ -292,8 +292,9 @@ class TestNeedinessPenalty:
         # 客户 10 条，我 10 条，交替发送
         for i in range(10):
             insert_messages(wxid, my if i % 2 == 0 else wxid, f"msg_{i}", base + i * 60)
-        result = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
-        assert result >= 0.9  # 基本无惩罚
+        penalty, volume_ratio, initiation_ratio = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
+        assert penalty >= 0.9
+        assert 0.9 <= volume_ratio <= 1.1
 
     def test_excessive_messaging_penalty(self, tmp_db, insert_messages, now_ts):
         """我发远多于客户 → 触发惩罚。"""
@@ -305,16 +306,17 @@ class TestNeedinessPenalty:
             insert_messages(wxid, my, f"msg_{i}", base + i * 60)
         for i in range(5):
             insert_messages(wxid, wxid, f"reply_{i}", base + 3600 + i * 60)
-        result = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
-        assert result < 1.0  # 有惩罚
+        penalty, volume_ratio, initiation_ratio = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
+        assert penalty < 1.0
+        assert volume_ratio > 2.0
 
     def test_too_few_messages(self, tmp_db, insert_messages, now_ts):
         """少于 2 条消息 → 返回 1.0。"""
         wxid = "wxid_client"
         my = "wxid_me"
         insert_messages(wxid, my, "hi", now_ts)
-        result = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
-        assert result == 1.0
+        penalty, volume_ratio, initiation_ratio = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
+        assert penalty == 1.0
 
     def test_no_client_messages(self, tmp_db, insert_messages, now_ts):
         """客户没发消息 → 返回 0.5。"""
@@ -323,5 +325,5 @@ class TestNeedinessPenalty:
         base = now_ts - 3600
         for i in range(5):
             insert_messages(wxid, my, f"msg_{i}", base + i * 60)
-        result = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
-        assert result == 0.5
+        penalty, volume_ratio, initiation_ratio = compute_neediness_penalty(tmp_db, my, wxid, session_gap_hours=4)
+        assert penalty == 0.5

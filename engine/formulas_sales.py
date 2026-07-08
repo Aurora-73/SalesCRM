@@ -330,7 +330,7 @@ def sales_action(bq: float, bsp: float, bws: float, bs: float = 0.0, pv: float =
 
     返回：
         "bargain": 报价/逼单
-        "push": 推进（约见/方案展示）
+        "push": 推进（拜访/方案展示）
         "nurture": 培育（解决顾虑，强化价值）
         "reset": 重置关系（换触达方式/换对接人）
         "maintain": 维持（保持存在感）
@@ -381,7 +381,7 @@ def sales_action(bq: float, bsp: float, bws: float, bs: float = 0.0, pv: float =
             "action": "push",
             "reason": f"BQ={bq:.2f} > 0.7 且 BSP={bsp:.2f} >= 0.6，适合推进",
             "instructions": [
-                "推进约见或方案展示",
+                "推进拜访或方案展示",
                 "确认客户需求和决策链",
                 "引入成功案例增加信任",
             ],

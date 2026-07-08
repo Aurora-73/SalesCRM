@@ -72,7 +72,7 @@ def _recommend_wiki(conn: sqlite3.Connection, config: Config, person: IdentityPe
         query_parts.append(recent_text)
     if ctx.fact_archive:
         archive = ctx.fact_archive
-        for section_name in ["关键信息", "当前状态", "关系时间线"]:
+        for section_name in ["关键信息", "当前状态", "客户时间线"]:
             idx = archive.find(f"## {section_name}")
             if idx != -1:
                 end = archive.find("\n## ", idx + 3)

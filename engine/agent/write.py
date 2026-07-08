@@ -84,7 +84,7 @@ def agent_events(name: str, scan: bool = False, disconnect_days: int = 7) -> str
         if not person:
             return f"未找到联系人: {name}"
         events = detect_events(conn, person, disconnect_days=disconnect_days)
-        parts = [f"# {person.display_name} 的关系事件 ({len(events)} 条)\n"]
+        parts = [f"# {person.display_name} 的客户事件 ({len(events)} 条)\n"]
         parts.append(format_events(events))
         if scan and events:
             from engine.facts.people_archive import append_event
@@ -186,8 +186,8 @@ def agent_save_analysis(
 # ---------------------------------------------------------------------------
 
 _SECTION_KEYWORDS: dict[str, list[str]] = {
-    "stage": ["场景理解", "阶段", "当前阶段", "关系阶段", "场景"],
-    "signals": ["关键信号分析", "关键信号", "信号", "IOI", "兴趣指标"],
+    "stage": ["场景理解", "阶段", "当前阶段", "销售阶段", "客户阶段", "关系阶段", "场景"],
+    "signals": ["关键信号分析", "关键信号", "信号", "意向信号", "意向指标", "购买信号"],
     "diagnosis": ["Wiki 框架诊断", "诊断", "wiki", "框架"],
     "strategy": ["具体操作", "策略", "操作", "行动方案", "方案"],
     "risks": ["核心风险", "风险", "禁忌", "注意事项"],

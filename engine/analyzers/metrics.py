@@ -48,8 +48,9 @@ def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, value))
 
 
-def compute_fback(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30) -> MetricValue:
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+def compute_fback(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> MetricValue:
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT sender_id, LENGTH(COALESCE(content, '')) AS chars "
         "FROM messages WHERE conversation_id = ? AND timestamp >= ? AND type = 1",
@@ -71,12 +72,19 @@ def compute_fback(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, win
     )
 
 
-def compute_rlatency(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, session_gap_hours: int = 4) -> MetricValue:
-    rows = conn.execute(
-        "SELECT sender_id, timestamp FROM messages "
-        "WHERE conversation_id = ? AND type = 1 ORDER BY timestamp",
-        (contact_wxid,),
-    ).fetchall()
+def compute_rlatency(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, session_gap_hours: int = 4, to_ts: Optional[int] = None) -> MetricValue:
+    if to_ts is not None:
+        rows = conn.execute(
+            "SELECT sender_id, timestamp FROM messages "
+            "WHERE conversation_id = ? AND type = 1 AND timestamp <= ? ORDER BY timestamp",
+            (contact_wxid, to_ts),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT sender_id, timestamp FROM messages "
+            "WHERE conversation_id = ? AND type = 1 ORDER BY timestamp",
+            (contact_wxid,),
+        ).fetchall()
 
     if len(rows) < 2:
         return MetricValue(raw=0.0, normalized=0.0, confidence=0.0, sample_size=len(rows))
@@ -106,7 +114,8 @@ def compute_rlatency(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, 
 
     if avg_customer == 0:
         return MetricValue(raw=0.0, normalized=0.0, confidence=0.0,
-                           sample_size=len(my_intervals) + len(customer_intervals))
+                           sample_size=len(my_intervals) + len(customer_intervals),
+                           extra={"avg_my_seconds": 0.0, "avg_customer_seconds": 0.0})
 
     raw = avg_my / avg_customer
     sample = len(my_intervals) + len(customer_intervals)
@@ -115,12 +124,14 @@ def compute_rlatency(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, 
         normalized=round(_normalize_ratio(raw), 4),
         confidence=round(_confidence(sample), 2),
         sample_size=sample,
+        extra={"avg_my_seconds": round(avg_my, 2), "avg_customer_seconds": round(avg_customer, 2)},
     )
 
 
-def _compute_customer_ratio(conn: sqlite3.Connection, contact_wxid: str, char: str, window_days: int) -> MetricValue:
+def _compute_customer_ratio(conn: sqlite3.Connection, contact_wxid: str, char: str, window_days: int, ref_date: Optional[datetime] = None) -> MetricValue:
     """计算客户的消息中含指定字符的比例（用于 qscore）。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT content FROM messages "
         "WHERE conversation_id = ? AND sender_id = ? AND timestamp >= ? AND type = 1 "
@@ -143,7 +154,7 @@ def _compute_customer_ratio(conn: sqlite3.Connection, contact_wxid: str, char: s
     )
 
 
-def _compute_emotion_ratio(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int) -> MetricValue:
+def _compute_emotion_ratio(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int, ref_date: Optional[datetime] = None) -> MetricValue:
     emotion_words = ["哈哈", "嘻嘻", "呜呜", "嗯嗯", "好的", "好吧", "嘿嘿", "噗",
                      "哇", "嗯", "呵", "emmm", "hhh", "233",
                      "可爱", "笨蛋", "傻瓜", "讨厌", "哼", "委屈", "难过", "开心", "好喜欢"]
@@ -195,7 +206,8 @@ def _compute_emotion_ratio(conn: sqlite3.Connection, my_wxid: str, contact_wxid:
                 return True
         return False
 
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
 
     # 1. 文本消息 (type=1)
     rows = conn.execute(
@@ -264,11 +276,17 @@ def _compute_emotion_ratio(conn: sqlite3.Connection, my_wxid: str, contact_wxid:
     )
 
 
-def compute_moments(conn: sqlite3.Connection, contact_wxid: str) -> MetricValue:
-    rows = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM moment_interactions WHERE user_id = ?",
-        (contact_wxid,),
-    ).fetchone()
+def compute_moments(conn: sqlite3.Connection, contact_wxid: str, to_ts: Optional[int] = None) -> MetricValue:
+    if to_ts is not None:
+        rows = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM moment_interactions WHERE user_id = ? AND timestamp <= ?",
+            (contact_wxid, to_ts),
+        ).fetchone()
+    else:
+        rows = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM moment_interactions WHERE user_id = ?",
+            (contact_wxid,),
+        ).fetchone()
     raw = rows["cnt"] if rows else 0
     max_val = 200
     normalized = math.log(1 + raw) / math.log(1 + max_val) if raw > 0 else 0.0
@@ -281,11 +299,17 @@ def compute_moments(conn: sqlite3.Connection, contact_wxid: str) -> MetricValue:
     )
 
 
-def compute_msg_count(conn: sqlite3.Connection, contact_wxid: str) -> MetricValue:
-    rows = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = ?",
-        (contact_wxid,),
-    ).fetchone()
+def compute_msg_count(conn: sqlite3.Connection, contact_wxid: str, to_ts: Optional[int] = None) -> MetricValue:
+    if to_ts is not None:
+        rows = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = ? AND timestamp <= ?",
+            (contact_wxid, to_ts),
+        ).fetchone()
+    else:
+        rows = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = ?",
+            (contact_wxid,),
+        ).fetchone()
     raw = rows["cnt"] if rows else 0
     cap = 500
     # 对数归一化：高消息量边际递减（100条→0.74, 500条→1.0, 1000条→1.07→cap）
@@ -299,8 +323,9 @@ def compute_msg_count(conn: sqlite3.Connection, contact_wxid: str) -> MetricValu
     )
 
 
-def compute_active_days(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30) -> MetricValue:
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+def compute_active_days(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> MetricValue:
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT COUNT(DISTINCT DATE(timestamp, 'unixepoch', 'localtime')) AS cnt "
         "FROM messages WHERE conversation_id = ? AND timestamp >= ?",
@@ -318,7 +343,8 @@ def compute_active_days(conn: sqlite3.Connection, contact_wxid: str, window_days
     )
 
 
-def compute_recent(conn: sqlite3.Connection, contact_wxid: str, recency_decay: int = 90) -> MetricValue:
+def compute_recent(conn: sqlite3.Connection, contact_wxid: str, recency_decay: int = 90, ref_date: Optional[datetime] = None) -> MetricValue:
+    now_ts = int((ref_date or datetime.now()).timestamp())
     rows = conn.execute(
         "SELECT MAX(timestamp) AS last_ts FROM messages WHERE conversation_id = ?",
         (contact_wxid,),
@@ -327,7 +353,7 @@ def compute_recent(conn: sqlite3.Connection, contact_wxid: str, recency_decay: i
     if not rows or not rows["last_ts"]:
         return MetricValue(raw=999, normalized=0.0, confidence=0.0, sample_size=0)
 
-    days_ago = (time.time() - rows["last_ts"]) / 86400
+    days_ago = (now_ts - rows["last_ts"]) / 86400
     normalized = _clamp(1.0 - days_ago / recency_decay)
 
     return MetricValue(
@@ -376,9 +402,10 @@ _QUALITY_POSITIVE = [
 _QUALITY_NEGATIVE_EXACT = {"嗯", "哦", "好的", "是的", "嗯嗯", "确实", "好吧", "ok"}
 
 
-def compute_fback_quality(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30) -> MetricValue:
+def compute_fback_quality(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> MetricValue:
     """回复质量 = 正向情绪词 + 追问比例 - 敷衍附和比例。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT content FROM messages "
         "WHERE conversation_id = ? AND sender_id != ? AND timestamp >= ? AND type = 1 "
@@ -461,9 +488,10 @@ def _score_message_emotion(content: str) -> float:
     return 0.5
 
 
-def compute_escore_volatility(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4) -> MetricValue:
-    """情绪波动 = 会话间情绪均值的标准差。波动大 = 有情绪投入。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+def compute_escore_volatility(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> MetricValue:
+    """情绪波动 = 会话间情绪均值的标准差。波动大 = 沟通投入度高。"""
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT sender_id, content, timestamp FROM messages "
         "WHERE conversation_id = ? AND timestamp >= ? AND type = 1 "
@@ -519,9 +547,10 @@ _PERSONAL_Q_KEYWORDS = [
 _FUNCTIONAL_Q_KEYWORDS = ["怎么", "帮我", "能不能", "可以吗", "教我", "看看", "怎么办"]
 
 
-def compute_qscore_detailed(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30) -> tuple[MetricValue, MetricValue]:
+def compute_qscore_detailed(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> tuple[MetricValue, MetricValue]:
     """细分问题类型：个人化（意向指标）和工具化（咨询信号）。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT content FROM messages "
         "WHERE conversation_id = ? AND sender_id = ? AND timestamp >= ? AND type = 1 "
@@ -572,9 +601,10 @@ def compute_qscore_detailed(conn: sqlite3.Connection, contact_wxid: str, window_
 _EXPLANATION_KEYWORDS = ["刚才", "刚刚", "在开会", "在忙", "不好意思", "抱歉", "没看到", "在上课", "在睡觉"]
 
 
-def compute_rlatency_context(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4) -> MetricValue:
+def compute_rlatency_context(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> MetricValue:
     """慢回时有解释的比例。有解释 = 正向信号。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
     rows = conn.execute(
         "SELECT sender_id, content, timestamp FROM messages "
         "WHERE conversation_id = ? AND timestamp >= ? AND type = 1 "
@@ -615,22 +645,32 @@ def compute_rlatency_context(conn: sqlite3.Connection, my_wxid: str, contact_wxi
     )
 
 
-def compute_neediness_penalty(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, session_gap_hours: int = 4) -> float:
-    """跟进投入惩罚系数。1.0 = 无惩罚，0.4 = 最低。"""
-    rows = conn.execute(
-        "SELECT sender_id, timestamp FROM messages "
-        "WHERE conversation_id = ? AND type = 1 ORDER BY timestamp",
-        (contact_wxid,),
-    ).fetchall()
+def compute_neediness_penalty(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, session_gap_hours: int = 4, to_ts: Optional[int] = None) -> tuple[float, float, float]:
+    """跟进投入惩罚系数。1.0 = 无惩罚，0.4 = 最低。
+    
+    返回: (penalty, volume_ratio, initiation_ratio)
+    """
+    if to_ts is not None:
+        rows = conn.execute(
+            "SELECT sender_id, timestamp FROM messages "
+            "WHERE conversation_id = ? AND type = 1 AND timestamp <= ? ORDER BY timestamp",
+            (contact_wxid, to_ts),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT sender_id, timestamp FROM messages "
+            "WHERE conversation_id = ? AND type = 1 ORDER BY timestamp",
+            (contact_wxid,),
+        ).fetchall()
 
     if len(rows) < 2:
-        return 1.0
+        return 1.0, 1.0, 0.5
 
     my_msgs = [r for r in rows if r["sender_id"] == my_wxid]
     customer_msgs = [r for r in rows if r["sender_id"] != my_wxid]
 
     if not customer_msgs:
-        return 0.5
+        return 0.5, 1.0, 0.5
 
     # 1. 消息量比惩罚
     volume_ratio = len(my_msgs) / max(len(customer_msgs), 1)
@@ -660,12 +700,13 @@ def compute_neediness_penalty(conn: sqlite3.Connection, my_wxid: str, contact_wx
         initiation_penalty = 1.0 - (initiation_ratio - 0.7) * 2.0
     initiation_penalty = max(0.4, initiation_penalty)
 
-    return round(min(volume_penalty, initiation_penalty), 4)
+    penalty = round(min(volume_penalty, initiation_penalty), 4)
+    return penalty, volume_ratio, initiation_ratio
 
 
-def compute_msg_volume_trend(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30) -> MetricValue:
+def compute_msg_volume_trend(conn: sqlite3.Connection, contact_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> MetricValue:
     """消息量变化率 = 最近7天消息数 / 前7天消息数。下降 = 负向信号。"""
-    now_ts = int(time.time())
+    now_ts = int((ref_date or datetime.now()).timestamp())
     this_week_start = now_ts - 7 * 86400
     last_week_start = now_ts - 14 * 86400
 
@@ -698,9 +739,9 @@ def compute_msg_volume_trend(conn: sqlite3.Connection, contact_wxid: str, window
     )
 
 
-def compute_latency_trend(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4) -> MetricValue:
+def compute_latency_trend(conn: sqlite3.Connection, my_wxid: str, contact_wxid: str, window_days: int = 30, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> MetricValue:
     """回复速度变化趋势 = 上周平均回复时间 / 本周平均回复时间。变慢 = 负向信号。"""
-    now_ts = int(time.time())
+    now_ts = int((ref_date or datetime.now()).timestamp())
     this_week_start = now_ts - 7 * 86400
     last_week_start = now_ts - 14 * 86400
     gap_seconds = session_gap_hours * 3600
@@ -749,9 +790,10 @@ def compute_latency_trend(conn: sqlite3.Connection, my_wxid: str, contact_wxid: 
 # 媒体参与度指标
 # ---------------------------------------------------------------------------
 
-def compute_media_engagement(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, window_days: int = 30) -> dict:
+def compute_media_engagement(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, window_days: int = 30, ref_date: Optional[datetime] = None) -> dict:
     """统计贴纸(type=47)和图片(type=3)的发送频率，提取贴纸 md5 词典。"""
-    cutoff = int((datetime.now() - timedelta(days=window_days)).timestamp())
+    now = ref_date or datetime.now()
+    cutoff = int((now - timedelta(days=window_days)).timestamp())
 
     # 客户的总消息数
     customer_total = conn.execute(
@@ -796,7 +838,7 @@ def compute_media_engagement(conn: sqlite3.Connection, contact_wxid: str, my_wxi
             md5 = m.group(1)
             sticker_vocab[md5] = sticker_vocab.get(md5, 0) + 1
 
-    # 镜像检测用更长的意向（180天），因为镜像信号需要时间积累
+    # 镜像检测用更长的窗口（180天），因为镜像信号需要时间积累
     mimicry_cutoff = int((datetime.now() - timedelta(days=180)).timestamp())
 
     # 我的贴纸 md5 词典（全局，跨所有会话，180天）
@@ -863,8 +905,9 @@ def compute_media_engagement(conn: sqlite3.Connection, contact_wxid: str, my_wxi
 # 动态时间维度指标（signal_flags，不参与 composite 加权）
 # ---------------------------------------------------------------------------
 
-def compute_session_recency(conn: sqlite3.Connection, contact_wxid: str, session_gap_hours: int = 4) -> dict:
+def compute_session_recency(conn: sqlite3.Connection, contact_wxid: str, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> dict:
     """最近一次有效会话距今天数。越小 = 越近 = 越好。"""
+    now_ts = int((ref_date or datetime.now()).timestamp())
     rows = conn.execute(
         "SELECT timestamp FROM messages WHERE conversation_id = ? AND type = 1 "
         "ORDER BY timestamp DESC",
@@ -884,7 +927,7 @@ def compute_session_recency(conn: sqlite3.Connection, contact_wxid: str, session
             break
         session_start_ts = rows[i]["timestamp"]
 
-    days_ago = (time.time() - latest_ts) / 86400
+    days_ago = (now_ts - latest_ts) / 86400
 
     if days_ago < 1:
         label = "今天活跃"
@@ -907,9 +950,9 @@ def compute_session_recency(conn: sqlite3.Connection, contact_wxid: str, session
     }
 
 
-def compute_momentum(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, session_gap_hours: int = 4) -> dict:
+def compute_momentum(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> dict:
     """动量 = 最近7天 vs 前7天的多维变化。用于识别爆发/降温。"""
-    now_ts = int(time.time())
+    now_ts = int((ref_date or datetime.now()).timestamp())
     this_start = now_ts - 7 * 86400
     last_start = now_ts - 14 * 86400
 
@@ -973,8 +1016,9 @@ def compute_momentum(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, 
     }
 
 
-def compute_initiation_source(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, session_gap_hours: int = 4) -> dict:
+def compute_initiation_source(conn: sqlite3.Connection, contact_wxid: str, my_wxid: str, session_gap_hours: int = 4, ref_date: Optional[datetime] = None) -> dict:
     """最近一次会话是谁发起的。客户发起 = 强正向信号。"""
+    now_ts = int((ref_date or datetime.now()).timestamp())
     rows = conn.execute(
         "SELECT sender_id, timestamp FROM messages "
         "WHERE conversation_id = ? AND type = 1 ORDER BY timestamp DESC",
@@ -998,7 +1042,7 @@ def compute_initiation_source(conn: sqlite3.Connection, contact_wxid: str, my_wx
     initiator = "client" if initiator_msg["sender_id"] != my_wxid else "me"
 
     # 会话距今多久
-    days_ago = (time.time() - rows[0]["timestamp"]) / 86400
+    days_ago = (now_ts - rows[0]["timestamp"]) / 86400
 
     # 判断信号强度
     if initiator == "client" and days_ago < 3:
@@ -1038,32 +1082,34 @@ def classify_interaction_pattern(metrics: Metrics) -> str:
 
 
 def compute_metrics_for_contact(conn: sqlite3.Connection, config: Config, contact_wxid: str, contact_name: str = "",
-                                top_target: bool = False, prev_base_score: Optional[float] = None) -> Metrics:
+                                top_target: bool = False, prev_base_score: Optional[float] = None,
+                                ref_date: Optional[datetime] = None, to_ts: Optional[int] = None) -> Metrics:
     """为单个联系人计算全部指标。"""
     my_wxid = config.my_wxid
     mc = config.metrics
 
     # 原始指标
-    fback = compute_fback(conn, my_wxid, contact_wxid, mc.active_days_window)
-    rlatency = compute_rlatency(conn, my_wxid, contact_wxid, mc.session_gap_hours)
-    qscore = _compute_customer_ratio(conn, contact_wxid, "?", mc.active_days_window)
-    escore = _compute_emotion_ratio(conn, my_wxid, contact_wxid, mc.active_days_window)
-    moments = compute_moments(conn, contact_wxid)
-    msg_count = compute_msg_count(conn, contact_wxid)
-    active_days = compute_active_days(conn, contact_wxid, mc.active_days_window)
-    recent = compute_recent(conn, contact_wxid, mc.recency_decay)
+    fback = compute_fback(conn, my_wxid, contact_wxid, mc.active_days_window, ref_date=ref_date)
+    rlatency = compute_rlatency(conn, my_wxid, contact_wxid, mc.session_gap_hours, to_ts=to_ts)
+    qscore = _compute_customer_ratio(conn, contact_wxid, "?", mc.active_days_window, ref_date=ref_date)
+    escore = _compute_emotion_ratio(conn, my_wxid, contact_wxid, mc.active_days_window, ref_date=ref_date)
+    moments = compute_moments(conn, contact_wxid, to_ts=to_ts)
+    msg_count = compute_msg_count(conn, contact_wxid, to_ts=to_ts)
+    active_days = compute_active_days(conn, contact_wxid, mc.active_days_window, ref_date=ref_date)
+    recent = compute_recent(conn, contact_wxid, mc.recency_decay, ref_date=ref_date)
 
     # 新增指标
-    fback_quality = compute_fback_quality(conn, my_wxid, contact_wxid, mc.active_days_window)
+    fback_quality = compute_fback_quality(conn, my_wxid, contact_wxid, mc.active_days_window, ref_date=ref_date)
     escore_volatility = compute_escore_volatility(conn, my_wxid, contact_wxid,
-                                                   mc.active_days_window, mc.session_gap_hours)
-    qscore_personal, qscore_functional = compute_qscore_detailed(conn, contact_wxid, mc.active_days_window)
+                                                   mc.active_days_window, mc.session_gap_hours, ref_date=ref_date)
+    qscore_personal, qscore_functional = compute_qscore_detailed(conn, contact_wxid, mc.active_days_window, ref_date=ref_date)
     rlatency_context = compute_rlatency_context(conn, my_wxid, contact_wxid,
-                                                 mc.active_days_window, mc.session_gap_hours)
-    neediness_penalty = compute_neediness_penalty(conn, my_wxid, contact_wxid, mc.session_gap_hours)
-    msg_volume_trend = compute_msg_volume_trend(conn, contact_wxid, mc.active_days_window)
+                                                 mc.active_days_window, mc.session_gap_hours, ref_date=ref_date)
+    neediness_result = compute_neediness_penalty(conn, my_wxid, contact_wxid, mc.session_gap_hours, to_ts=to_ts)
+    neediness_penalty, volume_ratio, initiation_ratio = neediness_result
+    msg_volume_trend = compute_msg_volume_trend(conn, contact_wxid, mc.active_days_window, ref_date=ref_date)
     latency_trend = compute_latency_trend(conn, my_wxid, contact_wxid,
-                                           mc.active_days_window, mc.session_gap_hours)
+                                           mc.active_days_window, mc.session_gap_hours, ref_date=ref_date)
 
     sid = contact_wxid[-6:] if len(contact_wxid) >= 6 else contact_wxid
     metrics = Metrics(
@@ -1075,6 +1121,8 @@ def compute_metrics_for_contact(conn: sqlite3.Connection, config: Config, contac
         rlatency_context=rlatency_context,
         msg_volume_trend=msg_volume_trend, latency_trend=latency_trend,
         neediness_penalty=neediness_penalty,
+        volume_ratio=volume_ratio,
+        initiation_ratio=initiation_ratio,
         top_target_bonus=top_target,
     )
 
@@ -1091,10 +1139,10 @@ def compute_metrics_for_contact(conn: sqlite3.Connection, config: Config, contac
     metrics.urgency = sales_data["urgency"]
 
     # 动态时间信号（不参与加权，仅注入上下文）
-    metrics.session_recency = compute_session_recency(conn, contact_wxid, mc.session_gap_hours)
-    metrics.momentum = compute_momentum(conn, contact_wxid, my_wxid, mc.session_gap_hours)
-    metrics.initiation_source = compute_initiation_source(conn, contact_wxid, my_wxid, mc.session_gap_hours)
-    metrics.media_engagement = compute_media_engagement(conn, contact_wxid, my_wxid, mc.active_days_window)
+    metrics.session_recency = compute_session_recency(conn, contact_wxid, mc.session_gap_hours, ref_date=ref_date)
+    metrics.momentum = compute_momentum(conn, contact_wxid, my_wxid, mc.session_gap_hours, ref_date=ref_date)
+    metrics.initiation_source = compute_initiation_source(conn, contact_wxid, my_wxid, mc.session_gap_hours, ref_date=ref_date)
+    metrics.media_engagement = compute_media_engagement(conn, contact_wxid, my_wxid, mc.active_days_window, ref_date=ref_date)
 
     base_score = compute_base_score(metrics, config.weights, top_target)
     metrics.base_score = base_score

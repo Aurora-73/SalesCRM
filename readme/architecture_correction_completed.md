@@ -2,7 +2,7 @@
 
 > 创建日期：2026-07-02  
 > 原计划：`plan/矫正计划.md`（已归档至此）  
-> 验收报告：`loveMentor/plan/SalesCRM矫正验收.md`  
+> 验收报告：`plan/SalesCRM矫正验收.md`  
 > 状态：✅ **已完成**
 
 ---
@@ -132,4 +132,4 @@
 - [facts.md](facts.md) — 事实档案概念分层 + 自检清单
 - [mcp.md](mcp.md) — MCP 工具文档
 - [future_formula_wiki_metadata.md](future_formula_wiki_metadata.md) — P6 未来计划
-- 验收报告：`loveMentor/plan/SalesCRM矫正验收.md`
+- 验收报告：`plan/SalesCRM矫正验收.md`

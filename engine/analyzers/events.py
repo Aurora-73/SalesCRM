@@ -1,7 +1,7 @@
 """事件流 / 活动时间线检测器。
 
-从聊天记录中自动提取关键关系事件，无需 LLM。
-作为联系人的"关系时间线"，比原始消息历史更有价值。
+从聊天记录中自动提取关键客户事件，无需 LLM。
+作为联系人的"客户时间线"，比原始消息历史更有价值。
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ class EventType(Enum):
     FREQUENCY_DOWN = "聊天频率下降"
     DISCONNECT = "断联"
     RECONNECT = "恢复联系"
-    FIRST_DATE = "首次约见"
+    FIRST_DATE = "首次拜访"
 
     SIGNAL_LEVEL_UP = "意向等级提升"
     SIGNAL_LEVEL_DOWN = "意向等级下降"
 
     INFO_UPDATE = "档案信息更新"
-    MILESTONE = "关系里程碑"
+    MILESTONE = "商机里程碑"
 
     REQUIREMENT_CONFIRM = "需求确认"
     DECISION_MAKER_APPEAR = "决策人出现"
@@ -88,7 +88,7 @@ def detect_events(
     person: IdentityPerson,
     disconnect_days: int = 7,
 ) -> list[Event]:
-    """检测某人的关系事件。返回按时间排序的事件列表。"""
+    """检测某人的客户事件。返回按时间排序的事件列表。"""
     wxids = [a.wxid for a in person.accounts]
     if not wxids:
         return []
@@ -204,7 +204,7 @@ def detect_events(
                     ))
             last_freq_state = state
 
-    # 5. 首次约见（从 Dates section 检测）
+    # 5. 首次拜访（从 Dates section 检测）
     # 这个通过 facts/people_archive.py 的 Dates 数据获取，此处跳过
     # （CLI 的 events scan 命令会在外层处理）
 
@@ -278,7 +278,7 @@ def detect_milestones(
     conn: sqlite3.Connection,
     person: IdentityPerson,
 ) -> list[Event]:
-    """检测关系里程碑：认识 N 天、消息数破千等。"""
+    """检测商机里程碑：认识 N 天、消息数破千等。"""
     wxids = [a.wxid for a in person.accounts]
     if not wxids:
         return []
@@ -357,9 +357,9 @@ def compute_timeline(
     categories: Optional[list[TimelineCategory]] = None,
     max_events: int = 50,
 ) -> list[Event]:
-    """生成完整的关系时间线。
+    """生成完整的客户时间线。
 
-    整合所有事件类型，按时间排序，返回联系人的"关系时间线"。
+    整合所有事件类型，按时间排序，返回联系人的"客户时间线"。
 
     Args:
         conn: SQLite 连接

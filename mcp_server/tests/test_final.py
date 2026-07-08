@@ -136,9 +136,9 @@ def test_guide_tool():
     assert "wiki_search" in result, "workflow/analysis 应包含 wiki_search"
     print(f"  [PASS] workflow/analysis 内容完整")
 
-    # 7. 验证无 loveMentor / 恋爱 表述
+    # 7. 验证无恋爱场景表述
     all_content = " ".join(GUIDES.values())
-    assert "loveMentor" not in all_content, "guide 内容不应包含 loveMentor"
+    assert "loveMentor" not in all_content, "guide 内容不应包含其他项目名"
     assert "恋爱" not in all_content, "guide 内容不应包含 恋爱"
     assert "约会" not in all_content, "guide 内容不应包含 约会"
     assert "表白" not in all_content, "guide 内容不应包含 表白"

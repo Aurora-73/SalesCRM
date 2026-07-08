@@ -370,7 +370,7 @@ def wiki_context_data(
 
 
 def timeline(name: str, max_events: int = 30, categories: list[str] | None = None) -> dict:
-    """结构化时间线查询 — 返回 dict 含关系事件列表。"""
+    """结构化时间线查询 — 返回 dict 含客户事件列表。"""
     from engine.analyzers.events import compute_timeline, timeline_to_dict
     conn, config = _get_conn()
     try:
@@ -383,6 +383,33 @@ def timeline(name: str, max_events: int = 30, categories: list[str] | None = Non
             "display_name": person.display_name,
             "events": timeline_to_dict(events),
         }
+    finally:
+        conn.close()
+
+
+def stage_data(name: str) -> dict:
+    """销售阶段自动识别 — 基于指标+事件+失败档案推断当前销售阶段。
+
+    返回 StageState 字典：current_stage / next_stage / advancement_signals /
+    blockers / is_stagnant / entered_at / days_in_current_stage。
+    """
+    from engine.analyzers.stage_recognizer import recognize_stage, get_stage_summary
+    from engine.analyzers.metrics import compute_metrics_for_contact
+    conn, config = _get_conn()
+    try:
+        person = _resolve_person(conn, name)
+        if not person:
+            return {"error": "PERSON_NOT_FOUND", "message": f"未找到联系人: {name}"}
+        wxids = [acc.conversation_id or acc.wxid for acc in person.accounts if acc.conversation_id or acc.wxid]
+        if not wxids:
+            return {"error": "NO_CONVERSATION_ID", "message": f"联系人 {name} 没有会话 ID"}
+
+        metrics = compute_metrics_for_contact(conn, config, wxids[0], person.display_name)
+        stage = recognize_stage(conn, metrics, wxids[0], person.display_name)
+        result = get_stage_summary(stage)
+        result["person_id"] = person.id
+        result["display_name"] = person.display_name
+        return result
     finally:
         conn.close()
 
@@ -491,7 +518,7 @@ __all__ = [
     # 只读（结构化）
     "brief_data", "chat_data", "message_context_data",
     "rank_data", "status_data", "wiki_search_data", "wiki_context_data",
-    "timeline", "signals",
+    "timeline", "signals", "stage_data",
     # 写入
     "note", "date", "evaluate", "events",
     "save_analysis", "save_from_markdown",

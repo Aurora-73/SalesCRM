@@ -59,10 +59,10 @@ def agent_brief(conn: sqlite3.Connection, config: Config, person: IdentityPerson
     ctx = ContextBuilder(conn, config).build_person_context(person, recent_count=30)
     if ctx.fact_archive:
         archive_sections = _extract_sections(ctx.fact_archive)
-        for section_name in ("关系时间线", "月度消息分布", "关键信息"):
+        for section_name in ("客户时间线", "月度消息分布", "关键信息"):
             content = archive_sections.get(section_name, "")
             if content:
-                if compact and section_name == "关系时间线":
+                if compact and section_name == "客户时间线":
                     entries = re.split(r"(?=^### )", content, flags=re.MULTILINE)
                     entries = [e for e in entries if e.strip()]
                     if len(entries) > 10:

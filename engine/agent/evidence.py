@@ -13,7 +13,7 @@ from engine.facts.people_archive import get_person_archive_path
 from engine.agent.core import _build_cross_refs
 
 _SECTION_MAP = {
-    "timeline": "关系时间线",
+    "timeline": "客户时间线",
     "evaluations": "当前状态",
     "notes": "Notes",
     "dates": "Dates",
@@ -90,10 +90,10 @@ def agent_evidence(
             continue
         if not content:
             continue
-        if name == "关系时间线":
+        if name == "客户时间线":
             content = _dedup_timeline(content)
         parts.append(f"## {name}\n")
-        if name == "关系时间线" and since_ts:
+        if name == "客户时间线" and since_ts:
             entries = re.split(r"(?=^### )", content, flags=re.MULTILINE)
             for entry in entries:
                 if not entry.strip():

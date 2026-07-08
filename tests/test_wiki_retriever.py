@@ -4,7 +4,7 @@
 覆盖：WikiIndex 加载/别名扩展、WikiRetriever.retrieve() 检索、task_type 预算、
 search_terms 打分、空查询/无效查询处理、低分命中处理。
 
-SalesCRM 使用单层 wiki 结构（docs/wiki/entities/），与 loveMentor 双层结构不同。
+SalesCRM 使用单层 wiki 结构（docs/wiki/entities/）。
 """
 
 from __future__ import annotations

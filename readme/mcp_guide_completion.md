@@ -25,7 +25,7 @@
 | 2 | **按需查** | 流程知识不塞进每个工具描述，而是集中在 guide 工具里，Agent 需要时才查 |
 | 3 | **精确指导** | guide 返回的是"下一步该做什么"，不是几百页的完整文档 |
 | 4 | **流程可见** | 关键工具的描述中明确指出前/后置依赖（"分析前必须先调 person_sync"） |
-| 5 | **同步一致** | 与 loveMentor 保持架构一致，通过 exchange/ 机制同步改进 |
+| 5 | **同步一致** | 与姊妹项目保持架构一致，通过 exchange/ 机制同步改进 |
 | 6 | **单一真相源** | guide 内容是 readme + skills 文档的精简映射，后者是权威来源 |
 
 ## 三、改进内容
@@ -90,7 +90,7 @@
 | 工具描述总 token | ~1400（估算） | ~2400（估算） |
 | 增量 | — | ~+1000 tokens |
 
-**结论**：+1000 tokens 对 Agent 上下文（通常 100K-200K 窗口）影响在 1% 以内，可接受。增量略高于 loveMentor（+800）是因为 SalesCRM 多 6 个销售公式工具的描述增强。
+**结论**：+1000 tokens 对 Agent 上下文（通常 100K-200K 窗口）影响在 1% 以内，可接受。增量略高于姊妹项目（+800）是因为 SalesCRM 多 6 个销售公式工具的描述增强。
 
 ## 五、内容维护机制
 
@@ -121,7 +121,7 @@ readme/*.md 和 .claude/skills/*.md  →  权威来源
 □ 这个改动是否影响现有 guide 主题的内容？
 □ 如果是，更新了对应 guide 主题了吗？
 □ 更新后调 guide(topic) 验证内容正确吗？
-□ guide 内容是否包含 loveMentor / 恋爱相关表述？（应为否）
+□ guide 内容是否包含恋爱场景相关表述？（应为否）
 ```
 
 ## 六、验收结果
@@ -132,7 +132,7 @@ readme/*.md 和 .claude/skills/*.md  →  权威来源
 | guide 11 主题可调用 | ✅ |
 | 中文别名映射 | ✅ |
 | 未知主题返回列表 | ✅ |
-| 无 loveMentor/恋爱/约会/表白/暧昧 表述 | ✅ |
+| 无恋爱/约会/表白/暧昧 表述 | ✅ |
 | 销售公式 BQ/BSP/BWS/PV 在 guide 中 | ✅ |
 | P0 描述增强（3个工具） | ✅ |
 | P1 描述增强（5个工具） | ✅ |
@@ -151,9 +151,9 @@ readme/*.md 和 .claude/skills/*.md  →  权威来源
 | [test_final.py](file:///E:/Code/SalesCRM/mcp_server/tests/test_final.py) | 修改：53→54 + test_guide_tool（含恋爱表述检查） |
 | [readme/mcp.md](file:///E:/Code/SalesCRM/readme/mcp.md) | 修改：工具数、目录、清单同步 |
 
-## 八、与 loveMentor 的差异
+## 八、与姊妹项目的差异
 
-| 维度 | loveMentor | SalesCRM |
+| 维度 | 姊妹项目 | SalesCRM |
 |------|-----------|----------|
 | 工具数 | 48→49 | 53→54 |
 | 描述增强工具数 | 12 | 23（多 6 销售公式 + 战态公式也增强） |

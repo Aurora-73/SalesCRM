@@ -10,14 +10,18 @@ class MetricValue:
     normalized: float = 0.0
     confidence: float = 0.0
     sample_size: int = 0
+    extra: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "raw": self.raw,
             "normalized": self.normalized,
             "confidence": self.confidence,
             "sample_size": self.sample_size,
         }
+        if self.extra:
+            data["extra"] = self.extra
+        return data
 
     @classmethod
     def from_dict(cls, d: dict) -> "MetricValue":
@@ -26,6 +30,7 @@ class MetricValue:
             normalized=d.get("normalized", 0.0),
             confidence=d.get("confidence", 0.0),
             sample_size=d.get("sample_size", 0),
+            extra=d.get("extra", {}),
         )
 
 
@@ -72,6 +77,8 @@ class Metrics:
 
     # 跟进投入惩罚（乘法系数，不参与加权）
     neediness_penalty: float = 1.0
+    volume_ratio: float = 1.0
+    initiation_ratio: float = 0.5
     # 互动模式标签
     interaction_pattern: str = ""
 
@@ -121,6 +128,8 @@ class Metrics:
             "signal_level": self.signal_level,
             "top_target_bonus": self.top_target_bonus,
             "neediness_penalty": round(self.neediness_penalty, 4),
+            "volume_ratio": round(self.volume_ratio, 4),
+            "initiation_ratio": round(self.initiation_ratio, 4),
             "interaction_pattern": self.interaction_pattern,
             "metrics": {k: v.to_dict() for k, v in self.all_metrics().items()},
             "delta": self.delta.to_dict(),
@@ -145,6 +154,8 @@ class Metrics:
             signal_level=d.get("signal_level", ""),
             top_target_bonus=d.get("top_target_bonus", False),
             neediness_penalty=d.get("neediness_penalty", 1.0),
+            volume_ratio=d.get("volume_ratio", 1.0),
+            initiation_ratio=d.get("initiation_ratio", 0.5),
             interaction_pattern=d.get("interaction_pattern", ""),
             fback=MetricValue.from_dict(metrics_d.get("fback", {})),
             rlatency=MetricValue.from_dict(metrics_d.get("rlatency", {})),

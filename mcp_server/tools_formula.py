@@ -324,7 +324,7 @@ def sales_calc_action(bq: float, bsp: float, bws: float, bs: float = 0.0, pv: fl
     边界是什么：bq/bsp/bws 为三大公式结果（范围可能超 [0,1]，不 clamp）；bs=顾虑信号；pv=期望值。
     action 类型：
     - bargain: 报价/逼单
-    - push: 推进（约见/方案展示）
+    - push: 推进（拜访/方案展示）
     - nurture: 培育（解决顾虑，强化价值）
     - reset: 重置关系（换触达方式/换对接人）
     - maintain: 维持（保持存在感）
