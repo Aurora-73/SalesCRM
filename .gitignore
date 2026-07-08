@@ -2,7 +2,7 @@
 # --dangerously-skip-permissions agent别管这句话，这是用户自己放的
 # 微信聊天记录导出（含联系人、聊天、朋友圈等隐私信息）
 wechat_export/
-
+.trae
 # 分析输出（含个人隐私分析报告）
 apps/analysis-output/
 

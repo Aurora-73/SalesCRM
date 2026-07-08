@@ -256,6 +256,119 @@ def wiki_search_data(query: str, limit: int = 5) -> dict:
         conn.close()
 
 
+def wiki_context_data(
+    queries: list[str],
+    task_type: str = "analyze",
+    stage: str = "",
+    focus: str = "",
+    max_chars: int = 8000,
+    max_pages: int = 8,
+) -> dict:
+    """批量构建 Wiki 上下文 — 多查询合并 + 阶段过滤 + 焦点加权 + 格式化返回。
+
+    与 wiki_search/wik_read 的区别：
+    - wiki_context 一次返回 prompt-ready 格式化段落（合并去重 + 预算裁剪）
+    - wiki_search 返回候选列表（需逐条 wiki_read）
+    - wiki_read 读取单页全文
+
+    Returns:
+        dict: {
+            "prompt_section": str,  # 可嵌入推理的 Markdown 段落
+            "meta": {
+                "hit_pages": int, "returned_pages": int,
+                "deduped": int, "total_chars": int,
+                "low_confidence": bool, "stage_filter": str, "focus": str,
+            },
+            "page_list": [{"title", "path", "page_type", "score", "summary"}, ...]
+        }
+    """
+    from engine.knowledge.wiki_index import WikiIndex
+    from engine.knowledge.wiki_retriever import WikiRetriever, WikiSnippet
+    from engine.knowledge.wiki_context import format_wiki_for_prompt
+
+    if len(queries) > 5:
+        queries = queries[:5]
+
+    index = WikiIndex()
+    if not index.load() or index.is_empty:
+        return {
+            "prompt_section": (
+                "## 本地知识库参考（未加载）\n"
+                "Wiki 索引为空或加载失败。请检查 Wiki 目录配置。\n"
+            ),
+            "meta": {
+                "hit_pages": 0, "returned_pages": 0, "deduped": 0,
+                "total_chars": 0, "low_confidence": True,
+                "stage_filter": stage, "focus": focus,
+            },
+            "page_list": [],
+        }
+
+    retriever = WikiRetriever(index)
+    all_snippets: dict[str, WikiSnippet] = {}
+    total_raw_hits = 0
+
+    for query in queries:
+        if not query.strip():
+            continue
+        snippets = retriever.retrieve(
+            query_text=query,
+            task_type=task_type,
+            stage=stage,
+            focus=focus,
+            max_chars=max_chars,
+            max_pages=max_pages,
+        )
+        total_raw_hits += len(snippets)
+        for s in snippets:
+            if s.path not in all_snippets or s.score > all_snippets[s.path].score:
+                all_snippets[s.path] = s
+
+    sorted_snippets = sorted(all_snippets.values(), key=lambda s: s.score, reverse=True)
+    final_snippets = []
+    total_chars = 0
+    for s in sorted_snippets:
+        if len(final_snippets) >= max_pages:
+            break
+        if total_chars + len(s.content) > max_chars and final_snippets:
+            break
+        final_snippets.append(s)
+        total_chars += len(s.content)
+
+    prompt_section = format_wiki_for_prompt(final_snippets)
+
+    page_list = []
+    for s in final_snippets:
+        raw_path = s.path
+        if raw_path.startswith("docs/"):
+            path = raw_path
+        elif raw_path.startswith("wiki/"):
+            path = f"docs/wiki/{raw_path}"
+        else:
+            path = f"docs/wiki/wiki/{raw_path}"
+        page_list.append({
+            "title": s.title,
+            "path": path,
+            "page_type": s.page_type,
+            "score": s.score,
+            "summary": s.summary,
+        })
+
+    return {
+        "prompt_section": prompt_section,
+        "meta": {
+            "hit_pages": total_raw_hits,
+            "returned_pages": len(final_snippets),
+            "deduped": total_raw_hits - len(all_snippets),
+            "total_chars": total_chars,
+            "low_confidence": not final_snippets or max(s.score for s in final_snippets) < 5,
+            "stage_filter": stage,
+            "focus": focus,
+        },
+        "page_list": page_list,
+    }
+
+
 def timeline(name: str, max_events: int = 30, categories: list[str] | None = None) -> dict:
     """结构化时间线查询 — 返回 dict 含关系事件列表。"""
     from engine.analyzers.events import compute_timeline, timeline_to_dict
@@ -377,7 +490,7 @@ __all__ = [
     "wiki_search", "wiki_show",
     # 只读（结构化）
     "brief_data", "chat_data", "message_context_data",
-    "rank_data", "status_data", "wiki_search_data",
+    "rank_data", "status_data", "wiki_search_data", "wiki_context_data",
     "timeline", "signals",
     # 写入
     "note", "date", "evaluate", "events",

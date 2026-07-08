@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 from fastmcp import FastMCP
 
-from mcp_server import tools_read, tools_write, tools_formula, tools_guide, tools_config
+from mcp_server import tools_read, tools_write, tools_formula, tools_guide, tools_config, tools_workflow
 
 mcp = FastMCP("SalesCRM")
 
@@ -56,19 +56,24 @@ mcp.tool(
 
 mcp.tool(
     name="person_brief",
-    description="获取客户简要信息（身份/消息统计/指标/事件/信号/最近消息/Wiki推荐）。⚠️调此工具前必须先调 person_sync 同步最新消息",
+    description="获取客户简要信息（身份/消息统计/指标/事件/信号/最近消息/Wiki推荐/relationship_stage/recommended_wiki_queries）。"
+               "⚠️调此工具前必须先调 person_sync 同步最新消息。"
+               "看到信号后，将 recommended_wiki_queries + relationship_stage 传给 wiki_context 建立方法论框架。"
+               "详见 guide('workflow/analysis')",
     annotations={"readOnlyHint": True},
 )(tools_read.person_brief)
 
 mcp.tool(
     name="person_chat",
-    description="获取客户聊天记录（按日期分组，已标注'我'/'对方'名字）",
+    description="获取客户聊天记录（按日期分组，已标注'我'/'对方'名字）。"
+               "【下一步建议】看到聊天模式后调 wiki_search 找话术策略和互动技巧",
     annotations={"readOnlyHint": True},
 )(tools_read.person_chat)
 
 mcp.tool(
     name="person_metrics",
-    description="获取客户关系指标（回复率、回复速度、情绪评分等）",
+    description="获取客户关系指标（回复率、回复速度、情绪评分等）。"
+               "【下一步建议】看到数值后调 wiki_search 解读指标背后的含义，或用 sales_calc_bq 核验",
     annotations={"readOnlyHint": True},
 )(tools_read.person_metrics)
 
@@ -86,7 +91,8 @@ mcp.tool(
 
 mcp.tool(
     name="wiki_search",
-    description="搜索 Wiki 知识库（销售知识、技巧、场景应对策略）",
+    description="搜索 Wiki 知识库（销售知识、技巧、场景应对策略）。"
+               "【下一步建议】找到条目后用 wiki_read 读全文，然后结合数据验证框架",
     annotations={"readOnlyHint": True},
 )(tools_read.wiki_search)
 
@@ -97,6 +103,21 @@ mcp.tool(
     description="读取 Wiki 页面完整正文（wiki_search 找到路径后用此工具读全文）",
     annotations={"readOnlyHint": True},
 )(tools_read.wiki_read)
+
+# ── wiki_context（推荐主入口）───────────────────────────────────
+
+mcp.tool(
+    name="wiki_context",
+    description="【推荐·Wiki 主入口】批量构建 Wiki 知识上下文。传入多条查询 + 当前关系阶段 + 分析焦点，"
+               "一次返回格式化 prompt 段落（合并去重+阶段加权+预算裁剪）。"
+               "替代分析流程中多次 wiki_search+wiki_read 的重复调用。"
+               "参数：queries（查询列表，最多5条，超出自动截断）/ task_type（reply/meet/ask/analyze，默认analyze）/ "
+               "stage（销售阶段，从 person_brief 的 relationship_stage 获取）/ "
+               "focus（signals/strategy/risk/date/chat）/ max_chars（默认8000）/ max_pages（默认8）。"
+               "返回：prompt_section（可直接嵌入推理的 Markdown 段落）+ meta + page_list。"
+               "注意：wiki_search+wiki_read 保留用于精确单页钻取，wiki_context 是批量建框架的主入口。",
+    annotations={"readOnlyHint": True},
+)(tools_read.wiki_context)
 
 # ── Phase 1: 写入工具（2 个）──────────────────────────────────
 
@@ -115,7 +136,8 @@ mcp.tool(
 mcp.tool(
     name="person_sync",
     description="⚠️【分析前置·必须调用】增量同步单个客户最新消息。分析任何客户之前必须先调此工具，否则看到的是旧数据。"
-               "一般几秒完成。如果联系人搜不到，改用 system_sync(meta_only=True)",
+               "一般几秒完成。如果联系人搜不到，改用 system_sync(meta_only=True)。"
+               "【下一步建议】调 person_brief 获取全局视图，或 workflow_step('analysis') 查看完整分析流程",
 )(tools_write.person_sync)
 
 mcp.tool(
@@ -428,6 +450,24 @@ mcp.tool(
                "参考视角，不是裁判。结果只在数据全貌表出现一次，不主导策略。最终判断依据 Wiki 知识 + 事实档案",
     annotations={"readOnlyHint": True},
 )(tools_formula.sales_calc_action)
+
+# ── Skill-MCP 融合工具（双向导航）─────────────────────────────
+
+mcp.tool(
+    name="skill_map",
+    description="【Skill-MCP 融合】查询工具与 Skill 的双向映射关系。"
+               "输入工具名返回下一步建议和 Skill 参考，不输入则返回所有工具概览。"
+               "用法：skill_map('person_brief') 查特定工具，skill_map() 查看全部",
+    annotations={"readOnlyHint": True},
+)(tools_workflow.skill_map)
+
+mcp.tool(
+    name="workflow_step",
+    description="【Skill-MCP 融合】按步骤执行工作流，返回下一步指引。"
+               "支持工作流：analysis（客户分析）/ emergency_reply（紧急回复）/ weekly（周报）/ maintain（维持关系）。"
+               "用法：workflow_step('analysis') 查看流程概览，workflow_step('analysis', 0) 获取第0步详情",
+    annotations={"readOnlyHint": True},
+)(tools_workflow.workflow_step)
 
 if __name__ == "__main__":
     mcp.run()

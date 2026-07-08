@@ -205,7 +205,104 @@ python -X utf8 -m mcp_server.server
 | 只读工具（含 Wiki 检索 2 个 + guide 1 个） | 23 | **Wiki 工具是推理主轴，优先调用** |
 | 写入工具 | 17 | 事实档案 + 分析归档 + WCD 启动 |
 | 公式工具（辅助参考） | 15 | chat-skills 遗产，核验而非套用 |
-| **总计** | **55** | — |
+| 工作流工具（Skill-MCP 融合） | 2 | skill_map / workflow_step |
+| **总计** | **57** | — |
 
 > Wiki 工具：`wiki_search`、`wiki_read`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
 > guide 工具：11 个主题的操作指南，Agent 不确定流程时调用 `guide(topic)`。
+
+---
+
+## 十、Skill-MCP 融合架构
+
+### 10.1 设计理念
+
+本系统采用"**Skill 编排流程 + MCP 执行能力**"的融合架构，解决纯 MCP 缺乏业务流程指导、纯 Skill 缺乏标准化工具接口的问题。
+
+| 层级 | 职责 | 实现 |
+|------|------|------|
+| **Skill 层** | 业务流程编排、决策规则定义、方法论框架 | `skill/` 下的 Markdown 文件 |
+| **MCP 层** | 标准化数据接口、工具执行、安全隔离 | `mcp_server/` 下的 Python 工具 |
+| **双向导航** | 工具与文档的双向索引、工作流指引 | `skill_map()` / `workflow_step()` |
+
+### 10.2 核心工具
+
+| 工具 | 功能 | 参数 |
+|------|------|------|
+| `skill_map(tool_name)` | 查询工具与 Skill 的双向映射，返回下一步建议 | `tool_name`: 工具名（可选，不传返回全部） |
+| `workflow_step(workflow, step)` | 按步骤执行工作流，返回当前步骤详情和下一步指引 | `workflow`: 工作流名, `step`: 步骤编号（可选） |
+
+### 10.3 工作流定义
+
+| 工作流 | 名称 | 步骤数 | 适用场景 |
+|--------|------|--------|----------|
+| `analysis` | 客户分析完整流程 | 13 步 | "分析XX"、"帮我看看XX" |
+| `emergency_reply` | 紧急回复流程 | 4 步 | "客户发了XX怎么回" |
+| `weekly` | 周报流程 | 2 步 | "做周报" |
+| `maintain` | 维持关系流程 | 4 步 | "维持关系" |
+
+### 10.4 分析工作流（analysis）详细步骤
+
+```
+0: person_sync        → 同步最新消息
+1: person_brief       → 获取全局视图
+2: wiki_search        → 查阅知识库建立方法论框架
+3: wiki_read          → 读取 Wiki 页面全文
+4: person_chat        → 获取聊天记录
+5: person_metrics     → 获取指标数据
+6: person_signals     → 获取信号详情
+7: person_timeline    → 获取关系时间线
+8: person_evidence    → 查阅事实档案
+9: formula_get_params → 获取战态公式参数
+10: sales_get_params  → 获取销售公式参数
+11: sales_calc_bq     → 公式核验（辅助参考）
+12: save_from_markdown → 保存分析报告
+```
+
+### 10.5 双向索引数据源
+
+`skill/mcp_index.yaml` 是融合架构的核心数据源，包含：
+
+- **tools**：46+ 个工具的映射（下一步建议、Skill 参考、工作流位置）
+- **workflows**：4 个工作流的详细步骤定义
+- **scenarios**：场景到工作流的路由映射
+
+### 10.6 使用模式
+
+**模式 1：按工作流执行（推荐）**
+
+```python
+workflow_step('analysis')        # 查看流程概览
+workflow_step('analysis', 0)     # 获取第0步详情
+person_sync('XX')                # 执行第0步
+workflow_step('analysis', 1)     # 获取第1步详情
+person_brief('XX')               # 执行第1步
+# ...
+```
+
+**模式 2：工具驱动探索**
+
+```python
+skill_map('person_brief')        # 查 person_brief 之后能调什么
+# 根据返回的下一步建议选择工具
+```
+
+**模式 3：场景路由**
+
+```python
+# 用户说"分析XX" → 路由到 analysis 工作流
+# 用户说"客户发了XX怎么回" → 路由到 emergency_reply 工作流
+```
+
+### 10.7 工具描述增强
+
+所有核心工具的 description 中嵌入了下一步建议：
+
+| 工具 | 下一步建议 |
+|------|-----------|
+| `person_sync` | 调 `person_brief` 获取全局视图 |
+| `person_brief` | 看到信号后立即调 `wiki_search` |
+| `person_chat` | 看到聊天模式后调 `wiki_search` |
+| `person_metrics` | 看到数值后调 `wiki_search` 或 `sales_calc_bq` |
+| `wiki_search` | 找到条目后用 `wiki_read` 读全文 |
+| `sales_get_params` | 接下来代入销售公式计算 |

@@ -140,6 +140,42 @@ from engine.tools import wiki_show
 print(wiki_show('docs/wiki/wiki/entities/意向指标.md'))
 ```
 
+## 工作流工具（Skill-MCP 融合）
+
+```python
+from engine.tools import skill_map, workflow_step
+```
+
+| 函数           | 签名                                     | 用途                                           |
+| -------------- | ---------------------------------------- | ---------------------------------------------- |
+| `skill_map`   | `(tool_name=None) -> str`                | 查询工具与 Skill 的双向映射，返回下一步建议。不传 tool_name 返回全部工具概览 |
+| `workflow_step` | `(workflow, step=None) -> str`           | 按步骤执行工作流，返回当前步骤详情和下一步指引 |
+
+**工作流列表**：
+
+| 工作流 | 名称 | 步骤数 |
+|--------|------|--------|
+| `analysis` | 客户分析完整流程 | 13 步 |
+| `emergency_reply` | 紧急回复流程 | 4 步 |
+| `weekly` | 周报流程 | 2 步 |
+| `maintain` | 维持关系流程 | 4 步 |
+
+**使用示例**：
+
+```python
+# 查看分析流程概览
+workflow_step('analysis')
+
+# 获取第0步详情
+workflow_step('analysis', 0)
+
+# 查询工具映射
+skill_map('person_brief')
+
+# 查看所有工具概览
+skill_map()
+```
+
 ## 禁止事项
 
 | 禁止                                      | 正确做法                                   |

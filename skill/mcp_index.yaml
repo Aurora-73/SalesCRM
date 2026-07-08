@@ -1,0 +1,597 @@
+title: SalesCRM Skill-MCP 双向索引
+description: 建立 MCP 工具与 Skill 工作流之间的双向导航关系
+version: "1.0"
+created_at: 2026-07-08
+
+tools:
+  person_sync:
+    skill_ref: sales-crm.md#基本流程
+    workflow_ref: workflow/analysis#第零步
+    next_step:
+      - person_brief
+      - person_chat
+    description: "同步客户最新消息。完成后建议：person_brief 获取全局视图（含 recommended_wiki_queries）"
+
+  person_brief:
+    skill_ref: mcp-analysis.md#第一步
+    workflow_ref: workflow/analysis#第一步
+    next_step:
+      - wiki_context
+      - person_chat
+      - person_metrics
+      - person_signals
+    description: "获取全局视图（指标/事件/信号/recommended_wiki_queries）。看到信号后立即调 wiki_context 构建知识框架"
+
+  person_chat:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - wiki_context
+      - person_metrics
+      - person_signals
+    description: "获取聊天记录。看到聊天模式后查 wiki_context 找话术策略"
+
+  person_metrics:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - wiki_context
+      - person_signals
+    description: "获取指标数据。看到数值后查 wiki_context 解读含义"
+
+  person_signals:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - wiki_read
+      - person_timeline
+      - person_evidence
+    description: "获取信号详情。看到信号类型后用 wiki_read 读取对应框架全文"
+
+  person_timeline:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - wiki_context
+      - person_evidence
+    description: "关系时间线。看到趋势后查 wiki_context 理解趋势"
+
+  person_evidence:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - formula_get_params
+      - sales_get_params
+      - save_from_markdown
+    description: "事实档案。对比历史事实与 Wiki 框架"
+
+  person_moments_stats:
+    skill_ref: mcp-analysis.md#第二步
+    workflow_ref: workflow/analysis#第二步
+    next_step:
+      - wiki_context
+    description: "朋友圈互动统计。查 wiki_context('展示面')"
+
+  person_compare:
+    skill_ref: sales-crm.md
+    next_step:
+      - save_from_markdown
+    description: "对比历史分析。用于持续跟踪变化"
+
+  person_status:
+    skill_ref: mcp-tools.md
+    next_step:
+      - person_metrics
+      - person_signals
+    description: "状态概览表格。如需详细数据调 person_metrics"
+
+  person_rank:
+    skill_ref: mcp-tools.md
+    next_step:
+      - person_brief
+      - weekly_report
+    description: "客户商务热度排名。对感兴趣的人调 person_brief"
+
+  wiki_search:
+    skill_ref: mcp-methodology.md#Wiki是推理主轴
+    workflow_ref: workflow/analysis#第一步
+    next_step:
+      - wiki_read
+    description: "精确搜索 Wiki 知识库（用于钻取）。建框架请用 wiki_context"
+
+  wiki_read:
+    skill_ref: mcp-methodology.md#Wiki是推理主轴
+    workflow_ref: workflow/analysis#第一步
+    next_step:
+      - person_chat
+      - person_metrics
+    description: "读取 Wiki 页面全文（用于精确引用）。批量建框架请用 wiki_context"
+
+  wiki_context:
+    skill_ref: mcp-methodology.md#Wiki是推理主轴
+    workflow_ref: workflow/analysis#第一步
+    next_step:
+      - person_chat
+      - person_metrics
+      - person_signals
+    description: "【推荐】批量构建 Wiki 知识上下文。传入多条查询+阶段+焦点，一次返回格式化 prompt 段落（合并去重+阶段加权+预算裁剪）"
+
+  formula_get_params:
+    skill_ref: mcp-analysis.md#第三步
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - formula_calc_ivi
+      - formula_calc_spe
+      - formula_calc_ews
+    description: "获取战态公式自动参数。接下来代入公式计算"
+
+  formula_calc_ivi:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "意图真实度（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_spe:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "社交势能（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_ews:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "推进窗口期（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_is:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "真实合作度（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_gap_effect:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "情绪落差刺激（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_eev:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "推进期望值（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_cs:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "矛盾演化状态（辅助参考）。用 wiki_context 核验结果"
+
+  formula_calc_action:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "战态行动决策（辅助参考）。用 wiki_context 核验结果"
+
+  sales_get_params:
+    skill_ref: mcp-analysis.md#第三步
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - sales_calc_bq
+      - sales_calc_bsp
+      - sales_calc_bws
+    description: "获取销售公式自动参数。接下来代入销售公式计算"
+
+  sales_calc_bq:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "购买意愿真实度（辅助参考）。用 wiki_context 核验结果"
+
+  sales_calc_bsp:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "商务势能（辅助参考）。用 wiki_context 核验结果"
+
+  sales_calc_bws:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "购买窗口期（辅助参考）。用 wiki_context 核验结果"
+
+  sales_calc_pv:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "成交期望值（辅助参考）。用 wiki_context 核验结果"
+
+  sales_calc_action:
+    skill_ref: mcp-methodology.md#公式是辅助参考
+    workflow_ref: workflow/analysis#第三步
+    next_step:
+      - wiki_context
+      - save_from_markdown
+    description: "销售行动决策（辅助参考）。用 wiki_context 核验结果"
+
+  save_from_markdown:
+    skill_ref: mcp-analysis.md#第四步
+    workflow_ref: workflow/analysis#第四步
+    next_step: []
+    description: "【必须】保存分析报告。分析流程的最后一步"
+
+  person_save_analysis:
+    skill_ref: mcp-analysis.md#第四步
+    workflow_ref: workflow/analysis#第四步
+    next_step: []
+    description: "【可选】保存结构化分析。建议先调 save_from_markdown"
+
+  events_scan:
+    skill_ref: mcp-rules.md
+    next_step:
+      - events_save
+    description: "扫描关系事件（只读）。确认后用 events_save 写入"
+
+  events_save:
+    skill_ref: mcp-rules.md
+    next_step:
+      - person_evidence
+    description: "检测并写入事件。写入后用 person_evidence 查看"
+
+  person_note:
+    skill_ref: mcp-rules.md#事实档案写入规则
+    next_step: []
+    description: "添加备注到事实档案（客观事实）"
+
+  person_date_record:
+    skill_ref: mcp-rules.md#事实档案写入规则
+    next_step: []
+    description: "记录会面信息"
+
+  person_evaluate:
+    skill_ref: mcp-rules.md#事实档案写入规则
+    next_step: []
+    description: "记录主观评估（分析归档，优先级低于事实）"
+
+  sync_moments:
+    skill_ref: mcp-tools.md
+    next_step:
+      - person_moments_stats
+    description: "同步朋友圈互动。同步后用 person_moments_stats 查看"
+
+  system_sync:
+    skill_ref: mcp-tools.md
+    next_step:
+      - weekly_report
+      - person_rank
+    description: "全局同步。用于周报或排名"
+
+  weekly_report:
+    skill_ref: mcp-analysis.md#场景8
+    next_step: []
+    description: "生成周报"
+
+  maintain_list:
+    skill_ref: sales-crm.md#快速场景速查
+    workflow_ref: workflow/maintain#第一步
+    next_step:
+      - person_brief
+      - person_chat
+    description: "获取需要维持关系的候选人列表。对每人调 person_brief/person_chat"
+
+  message_context:
+    skill_ref: mcp-tools.md
+    next_step:
+      - wiki_context
+    description: "获取消息上下文。结合 wiki_context 分析"
+
+  contact_search:
+    skill_ref: mcp-tools.md
+    next_step:
+      - person_sync
+      - person_brief
+    description: "搜索联系人。找到后用 person_sync 同步"
+
+  contact_alias:
+    skill_ref: mcp-rules.md
+    next_step: []
+    description: "添加别名"
+
+  contact_alias_remove:
+    skill_ref: mcp-rules.md
+    next_step: []
+    description: "删除别名"
+
+  contact_merge:
+    skill_ref: mcp-rules.md#操作权限规范
+    next_step: []
+    description: "⚠️不可逆合并联系人"
+
+  exclude_add:
+    skill_ref: mcp-rules.md
+    next_step: []
+    description: "加入排除列表"
+
+  exclude_remove:
+    skill_ref: mcp-rules.md
+    next_step: []
+    description: "移出排除列表"
+
+  sticker_scan:
+    skill_ref: mcp-tools.md
+    next_step:
+      - sticker_list
+    description: "扫描贴纸。扫描后用 sticker_list 查看"
+
+  sticker_list:
+    skill_ref: mcp-tools.md
+    next_step:
+      - sticker_label
+    description: "查看贴纸列表。用 sticker_label 标注"
+
+  sticker_label:
+    skill_ref: mcp-tools.md
+    next_step: []
+    description: "标注贴纸"
+
+  failure_add:
+    skill_ref: mcp-rules.md
+    next_step: []
+    description: "记录失败案例"
+
+  wcd_status:
+    skill_ref: mcp-tools.md
+    next_step:
+      - wcd_start
+      - person_sync
+    description: "检查 WCD 状态。offline 时调 wcd_start"
+
+  wcd_start:
+    skill_ref: mcp-tools.md
+    next_step:
+      - wcd_status
+      - person_sync
+    description: "启动 WCD 后端。启动后用 wcd_status 确认"
+
+  weflow_status:
+    skill_ref: mcp-tools.md
+    next_step:
+      - weflow_start
+      - person_sync
+    description: "检查 WeFlow 状态。offline 时调 weflow_start"
+
+  weflow_start:
+    skill_ref: mcp-tools.md
+    next_step:
+      - weflow_status
+      - person_sync
+    description: "启动 WeFlow 后端。启动后用 weflow_status 确认"
+
+  get_backend:
+    skill_ref: mcp-tools.md
+    next_step:
+      - set_backend
+    description: "查看当前数据后端配置"
+
+  set_backend:
+    skill_ref: mcp-tools.md
+    next_step:
+      - get_backend
+      - person_sync
+    description: "切换数据后端（wcd/weflow）"
+
+  guide:
+    skill_ref: sales-crm.md#渐进式参考文件
+    next_step: []
+    description: "获取使用指南。按需查询各主题"
+
+workflows:
+  analysis:
+    name: 客户分析完整流程
+    steps:
+      - number: 0
+        name: 同步最新消息
+        tool: person_sync
+        description: "分析前必须先同步，否则看到的是旧数据"
+        skill_ref: sales-crm.md#三件事你必须知道
+
+      - number: 1
+        name: 获取全局视图
+        tool: person_brief
+        description: "获取身份/指标/事件/信号/Wiki推荐/relationship_stage/recommended_wiki_queries 的全局视图"
+        skill_ref: mcp-analysis.md#第一步
+
+      - number: 2
+        name: 构建知识框架
+        tool: wiki_context
+        description: "将 recommended_wiki_queries + relationship_stage 传给 wiki_context，一次构建知识框架"
+        skill_ref: mcp-analysis.md#第一步
+
+      - number: 3
+        name: 获取聊天记录
+        tool: person_chat
+        description: "查看最近聊天记录，理解互动模式"
+        skill_ref: mcp-analysis.md#第二步
+
+      - number: 4
+        name: 获取指标数据
+        tool: person_metrics
+        description: "获取16个指标数据，量化关系状态"
+        skill_ref: mcp-analysis.md#第二步
+
+      - number: 5
+        name: 获取信号详情
+        tool: person_signals
+        description: "获取信号详情（购买意向/商务势能等）"
+        skill_ref: mcp-analysis.md#第二步
+
+      - number: 6
+        name: 获取时间线
+        tool: person_timeline
+        description: "获取关系时间线，理解趋势变化"
+        skill_ref: mcp-analysis.md#第二步
+
+      - number: 7
+        name: 查阅事实档案
+        tool: person_evidence
+        description: "查阅已记录的笔记/会面/评价等客观事实"
+        skill_ref: mcp-analysis.md#第二步
+
+      - number: 8
+        name: 获取公式参数
+        tool: formula_get_params
+        description: "获取战态公式自动计算参数"
+        skill_ref: mcp-analysis.md#第三步
+
+      - number: 9
+        name: 获取销售公式参数
+        tool: sales_get_params
+        description: "获取销售公式自动计算参数"
+        skill_ref: mcp-analysis.md#第三步
+
+      - number: 10
+        name: 公式核验
+        tool: sales_calc_bq
+        description: "计算BQ购买意愿真实度（辅助参考）"
+        skill_ref: mcp-analysis.md#第三步
+
+      - number: 11
+        name: 保存分析报告
+        tool: save_from_markdown
+        description: "【必须】保存完整分析报告"
+        skill_ref: mcp-analysis.md#第四步
+
+  emergency_reply:
+    name: 紧急回复流程
+    steps:
+      - number: 0
+        name: 同步最新消息
+        tool: person_sync
+        description: "先同步确保看到最新消息"
+
+      - number: 1
+        name: 查看最近聊天
+        tool: person_chat
+        description: "看最近30条消息理解上下文"
+
+      - number: 2
+        name: 获取指标
+        tool: person_metrics
+        description: "了解当前关系状态"
+
+      - number: 3
+        name: 搜索话术策略
+        tool: wiki_context
+        description: "搜索需求刺激/冷读/逼单等策略"
+
+  weekly:
+    name: 周报流程
+    steps:
+      - number: 0
+        name: 全局同步
+        tool: system_sync
+        description: "同步所有私聊的最新消息"
+
+      - number: 1
+        name: 生成周报
+        tool: weekly_report
+        description: "生成本周客户维护总结"
+
+  maintain:
+    name: 维持关系流程
+    steps:
+      - number: 0
+        name: 获取候选人
+        tool: maintain_list
+        description: "获取需要维持关系的候选人列表"
+
+      - number: 1
+        name: 获取候选人详情
+        tool: person_brief
+        description: "对每个候选人获取全局视图"
+
+      - number: 2
+        name: 查看最近聊天
+        tool: person_chat
+        description: "看最近聊天理解互动模式"
+
+      - number: 3
+        name: 获取指标
+        tool: person_metrics
+        description: "了解当前状态"
+
+scenarios:
+  "分析XX":
+    workflow: analysis
+    tools:
+      - person_sync
+      - person_brief
+      - wiki_context
+      - person_chat
+      - person_metrics
+      - person_signals
+      - save_from_markdown
+
+  "客户发了XX怎么回":
+    workflow: emergency_reply
+    tools:
+      - person_sync
+      - person_chat
+      - person_metrics
+      - wiki_context
+
+  "做周报":
+    workflow: weekly
+    tools:
+      - system_sync
+      - weekly_report
+
+  "帮我搜一下XX":
+    workflow: null
+    tools:
+      - wiki_search
+      - wiki_read
+
+  "会面前":
+    workflow: null
+    tools:
+      - person_brief
+      - wiki_context
+
+  "挽回":
+    workflow: null
+    tools:
+      - person_sync
+      - person_brief
+      - wiki_context
+
+  "维持关系":
+    workflow: maintain
+    tools:
+      - maintain_list
+      - person_brief
+      - person_chat

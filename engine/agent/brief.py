@@ -258,6 +258,46 @@ def agent_brief(conn: sqlite3.Connection, config: Config, person: IdentityPerson
     return "\n".join(parts)
 
 
+def _build_wiki_queries(signals: dict[str, list[str]], stage: str) -> list[str]:
+    """根据检测到的信号和销售阶段，生成推荐的 wiki_context 查询词。
+
+    供 person_brief 返回 recommended_wiki_queries 字段，Agent 可直接传给 wiki_context。
+    """
+    queries: list[str] = []
+
+    if stage and stage != "未识别":
+        queries.append(f"{stage}阶段 策略 推进方法")
+
+    signal_queries = {
+        "rejection": "拒绝信号 销售止损 跟进策略",
+        "confession": "意向表达 购买信号 逼单策略",
+        "invitation": "客户邀约 会面安排 商务会谈",
+        "cold": "冷淡 降温 需求感控制 跟进频率",
+        "manipulation": "价格谈判 条件试探 客户博弈",
+        "moments_strong_ioi": "朋友圈互动 商务展示面 信任建立",
+    }
+    seen: set[str] = set()
+    for sig_type, query in signal_queries.items():
+        if sig_type in signals and query not in seen:
+            queries.append(query)
+            seen.add(query)
+
+    if not queries:
+        queries.append("销售三要素 需求确认 信任建立")
+
+    return queries
+
+
+def _detect_stage_label(conn, config, person) -> str:
+    """从阶段识别器获取短标签阶段名（如 潜客/需求确认/方案展示）。"""
+    try:
+        from engine.analyzers.stage_recognizer import recognize_stage
+        result = recognize_stage(conn, config, person)
+        return result.current_stage if result else ""
+    except Exception:
+        return ""
+
+
 def agent_brief_data(
     conn: sqlite3.Connection, config: Config, person: IdentityPerson,
 ) -> dict:
@@ -333,12 +373,16 @@ def agent_brief_data(
 
     # recommendations
     wiki_results = _recommend_wiki(conn, config, person, ctx, events, max_pages=5)
+    relationship_stage = _detect_stage_label(conn, config, person)
+    recommended_wiki_queries = _build_wiki_queries(signals, relationship_stage)
     recommendations = {
         "wiki": [
             {"title": r["title"], "path": r["path"], "summary": r["summary"][:60]}
             for r in wiki_results
         ] if wiki_results else [],
         "frameworks": _build_framework_recommendations(signals, ctx.has_archive),
+        "recommended_wiki_queries": recommended_wiki_queries,
+        "relationship_stage": relationship_stage,
     }
 
     # optional: 朋友圈

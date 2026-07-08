@@ -8,7 +8,7 @@ from typing import Optional
 
 from engine.tools import (
     brief_data, chat_data, metrics, rank_data, status_data,
-    wiki_search_data, wiki_show,
+    wiki_search_data, wiki_show, wiki_context_data,
     timeline, signals,
     evidence, compare_analysis, weekly, moments_stats,
     maintain_candidates, format_candidates,
@@ -108,6 +108,50 @@ def wiki_read(path: str, max_chars: int = 8000) -> dict:
         return {"path": path, "content": content, "max_chars": max_chars}
     except Exception as e:
         return {"error": "TOOL_ERROR", "message": str(e), "suggestion": "请检查 path 是否正确，应使用 wiki_search 返回的 path"}
+
+
+def wiki_context(
+    queries: list[str],
+    task_type: str = "analyze",
+    stage: str = "",
+    focus: str = "",
+    max_chars: int = 8000,
+    max_pages: int = 8,
+) -> dict:
+    """批量构建 Wiki 知识上下文（推荐作为主入口，替代多次 wiki_search+wiki_read）。
+
+    什么时候用：
+    - 分析客户时，拿到 brief 的阶段/信号后，一次性构建知识图景
+    - 看到聊天模式后，需要查策略和话术时
+    - 写报告前，需要回顾相关 Wiki 条目时
+
+    与 wiki_search 的区别：
+    - wiki_context 合并多条查询 + 阶段过滤 + 焦点加权，一次返回格式化 prompt 段落
+    - wiki_search 返回候选列表，需要逐条 wiki_read 读全文
+    wiki_search/wiki_read 保留用于精确钻取单页内容。
+
+    返回什么：dict 含 prompt_section（可直接嵌入推理的 Markdown 段落）、
+    meta（hit_pages/returned_pages/deduped/total_chars/low_confidence）、
+    page_list（命中页面摘要，供需要时用 wiki_read 钻取）。
+
+    边界：queries 最多 5 条（超出自动截断）；stage 从 person_brief 的 relationship_stage
+    获取；focus 取 signals/strategy/risk/date/chat。
+    """
+    try:
+        return wiki_context_data(
+            queries=queries,
+            task_type=task_type,
+            stage=stage,
+            focus=focus,
+            max_chars=max_chars,
+            max_pages=max_pages,
+        )
+    except Exception as e:
+        return {
+            "error": "TOOL_ERROR",
+            "message": str(e),
+            "suggestion": "请检查 queries 格式（应为字符串列表）和参数值",
+        }
 
 
 # ── Phase 2 P1: 只读工具 ──────────────────────────────────────

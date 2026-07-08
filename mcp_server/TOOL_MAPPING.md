@@ -2,7 +2,7 @@
 
 > engine/tools.py 函数 → MCP 工具名 映射关系
 
-## 只读工具（23 个）
+## 只读工具（24 个）
 
 | MCP 工具名 | engine/tools.py 函数 | 返回类型 | 说明 |
 |-----------|---------------------|---------|------|
@@ -13,6 +13,7 @@
 | `person_status` | `status_data(name)` | dict | 状态概览 |
 | `wiki_search` | `wiki_search_data(query, limit)` | dict | Wiki 搜索 |
 | `wiki_read` | `wiki_show(path, max_chars)` | dict | Wiki 页面正文 |
+| `wiki_context` | `wiki_context_data(queries, ...)` | dict | Wiki 知识上下文（推荐主入口） |
 | `person_timeline` | `timeline(name, max_events)` | dict | 关系时间线 |
 | `person_signals` | `signals(name)` | dict | 信号详情 |
 | `person_evidence` | `evidence(name, section, since_date)` | dict | 事实档案 |
