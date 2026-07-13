@@ -21,9 +21,10 @@ rank() → 筛选客户 → metrics()/chat()/evidence() → 分析 → 输出：
 | 条件 | 含义 |
 |------|------|
 | `recent > 3` | 最后消息超过 3 天前 |
-| `signal_level` 在"冷淡"及以上 | 有一定基础的客户关系 |
 | `trend < -0.005` | 周变化下降 |
 | 未被排除（非"系统号"/"企业号"/"放弃"） | 不是无关的联系人 |
+
+> 注：前置过滤已排除"无信号"等级，因此信号 1 可能包含"弱意向"/"中意向"/"强意向"/"冷淡"任何非"无信号"等级。
 
 ### 信号 2：高意向但未推进
 
@@ -37,13 +38,12 @@ rank() → 筛选客户 → metrics()/chat()/evidence() → 分析 → 输出：
 
 | 条件 | 含义 |
 |------|------|
-| `qscore_personal > 0.5` | 客户主动追问产品细节 |
 | `neediness_penalty > 0.9` | 互动正常（不是销售过度主动） |
 | `recent > 2` | 2 天没联系 |
 
 ### 客户数量控制
 
-每次最多输出 **3-5 人**，按优先级排序：
+工作流建议每次输出 **3-5 人**（手动调用时传 `max_people=5`），函数默认上限为 10。按优先级排序：
 1. 客户热度下降（信号 1）：优先级最高
 2. 高意向未推进（信号 2）：次之
 3. 高潜力互动不足（信号 3）：再次
@@ -142,29 +142,71 @@ Agent 根据数据判断：
 
 ## 实现方案
 
-写一个 `engine/tools.py` 的工具函数 `maintain_candidates()`：
+已实现两个工具函数（见 `engine/agent/maintain.py`）：
 
 ```python
-def maintain_candidates(max_people: int = 5) -> dict:
-    """返回需要维护的客户列表。
-    
-    返回：
-    {
-        "candidates": [
-            {
-                "name": "张三",
-                "rank": 3,
-                "signal_level": "冷淡",
-                "recent_days": 3,
-                "trend": -0.005,
-                "reason": "3天没联系，信号弱意向，BQ中等",
-            },
-            ...
-        ],
-        "total_checked": 50,
-        "excluded": 45,
-    }
+def maintain_candidates(max_people: int = 10) -> list[Candidate] | str:
+    """筛选需要维持关系的客户。
+
+    逻辑：
+    1. 从未排除的联系人中，按 composite 排序
+    2. 过滤 recent_days > 1（超过 1 天没联系）
+    3. 过滤 signal_level 不是"无信号"
+    4. 按优先级排序：
+       - 兴趣下降（recent > 3 且 trend < -0.005）最优先
+       - 有意向但未推进（signal_level ≥ 弱意向 且 recent > 1）次之
+       - 高潜力未投入（neediness_penalty > 0.9 且 recent > 2）再次
+    5. 返回 top N
+
+    返回 list[Candidate] 或错误字符串。
     """
 ```
 
-Agent 拿到候选名单后，再逐个调用 `brief`/`chat`/`metrics` 拿详细数据，自行分析并输出跟进建议。
+`Candidate` 数据结构：
+
+```python
+@dataclass
+class Candidate:
+    name: str                    # 显示名
+    person_id: str               # person_id
+    wxid: str                    # 主微信号
+    rank: int                    # 排名
+    composite: float             # composite 分数
+    signal_level: str            # 信号等级
+    recent_days: float           # 最后联系天数
+    trend: float                 # 趋势变化
+    neediness_penalty: float     # 跟进投入惩罚
+    interaction_pattern: str     # 互动模式
+    last_msg_summary: str        # 最后消息摘要
+    reason: str                  # 筛选原因（兴趣下降/意向未推进/高潜力未投入/需关注）
+```
+
+```python
+def format_candidates(candidates: list[Candidate]) -> str:
+    """格式化候选人为 Markdown（含上次消息摘要、消息建议规则）。"""
+```
+
+**使用流程**：
+
+```python
+from engine.tools import maintain_candidates, format_candidates
+
+candidates = maintain_candidates(max_people=5)
+print(format_candidates(candidates))
+
+# 对每个客户获取详细数据
+for c in candidates:
+    brief_data(c.name)
+    chat_data(c.name, recent=30)
+    metrics(c.name)
+    # Agent 分析后给出跟进建议
+```
+
+**筛选优先级**：
+
+| 优先级 | 原因 | 条件 |
+|--------|------|------|
+| 1 | 兴趣下降 | recent > 3 且 trend < -0.005 |
+| 2 | 意向未推进 | signal_level ≥ 弱意向 且 1 < recent ≤ 3 |
+| 3 | 高潜力未投入 | neediness_penalty > 0.9 且 recent > 2 |
+| 4 | 需关注 | 其他符合条件的 |

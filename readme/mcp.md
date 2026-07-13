@@ -1,7 +1,7 @@
 # SalesCRM MCP 服务器
 
-> **状态**：已完工 — 55 个工具全部注册，全量验收通过
-> **最后更新**：2026-07-02
+> **状态**：已完工 — 62 个工具全部注册，全量验收通过
+> **最后更新**：2026-07-14
 
 ---
 
@@ -46,8 +46,8 @@ Claude Desktop / Cursor / Windsurf
 ```
 mcp_server/
 ├── __init__.py
-├── server.py                # FastMCP 入口，注册 55 个工具
-├── tools_read.py            # 只读工具（23 个）+ wcd_start（写入）
+├── server.py                # FastMCP 入口，注册 62 个工具
+├── tools_read.py            # 只读工具（26 个，含 wiki_context/weflow_status）+ wcd_start/weflow_start（写入）
 ├── tools_formula.py         # 公式工具（15 个：9 战态 + 6 销售）
 ├── tools_guide.py           # 使用指南工具（1 个，11 个主题）
 ├── README.md                # 使用说明
@@ -89,9 +89,9 @@ python -X utf8 -m mcp_server.server
 
 ---
 
-## 五、工具清单（55 个）
+## 五、工具清单（62 个）
 
-> **Wiki 工具优先**：`wiki_search` 是 Agent 推理的第一依据，分析前先检索 Wiki 找方法论框架。
+> **Wiki 工具优先**：`wiki_context` 是 Agent 推理的第一依据（批量建框架主入口），分析前先检索 Wiki 找方法论框架。`wiki_search` + `wiki_read` 保留用于精确单页钻取。
 > **使用指南**：`guide` 工具提供 11 个主题的操作指南（分析流程/报告模板/方法论/权限规范等），Agent 不确定操作流程时调用。
 
 ### 5.1 Phase 1 — 核心工具（8 个）
@@ -107,15 +107,15 @@ python -X utf8 -m mcp_server.server
 | `person_note` | 添加客户备注到事实档案 | 写入 |
 | `person_date_record` | 记录会面信息 | 写入 |
 
-### 5.2 Phase 2 P0 — 即时补齐（3 个）
+### 5.2 Phase 2 P0 — 即时补齐（4 个）
 
-`wiki_read`（只读，**Wiki 全文读取，Agent 推理主轴**）、`person_sync`（写入）、`person_save_analysis`（写入）
+`wiki_context`（只读，**【推荐·Wiki 主入口】批量构建 Wiki 知识上下文**）、`wiki_read`（只读，Wiki 全文读取，精确单页钻取）、`person_sync`（写入）、`person_save_analysis`（写入）
 
-### 5.3 Phase 2 P1 — 已实现工具（13 个）
+### 5.3 Phase 2 P1 — 已实现工具（15 个）
 
-**只读（9 个）：** `person_timeline`、`person_signals`、`person_evidence`、`person_compare`、`weekly_report`、`person_moments_stats`、`maintain_list`、`events_scan`、`wcd_status`
+**只读（10 个）：** `person_timeline`、`person_signals`、`person_evidence`、`person_compare`、`weekly_report`、`person_moments_stats`、`maintain_list`、`events_scan`、`wcd_status`、`weflow_status`
 
-**写入（4 个）：** `events_save`、`person_evaluate`、`system_sync`、`wcd_start`（启动 WCD 后端进程）
+**写入（5 个）：** `events_save`、`person_evaluate`、`system_sync`、`wcd_start`（启动 WCD 后端进程）、`weflow_start`（启动 WeFlow 后端进程）
 
 ### 5.4 Phase 2 P2 — 拆分工具（15 个）
 
@@ -137,7 +137,21 @@ python -X utf8 -m mcp_server.server
 |--------|------|------|------|
 | `guide` | `topic` | 获取使用指南和工作流文档。11 个主题：getting-started / workflow/analysis / report-template / methodology / rules/evidence / rules/permissions / rules/reply / workflow/maintain / reference/sync / reference/formula / reference/stickers。支持中文别名 | 只读 |
 
-### 5.7 永不暴露
+### 5.7 工作流工具（2 个）
+
+| 工具名 | 说明 | 类型 |
+|--------|------|------|
+| `skill_map` | 查询工具与 Skill 的双向映射，返回下一步建议 | 只读 |
+| `workflow_step` | 按步骤执行工作流，返回当前步骤详情和下一步指引 | 只读 |
+
+### 5.8 系统配置工具（2 个）
+
+| 工具名 | 说明 | 类型 |
+|--------|------|------|
+| `get_backend` | 获取当前后端配置（WCD/WeFlow） | 只读 |
+| `set_backend` | 设置后端配置 | 写入 |
+
+### 5.9 永不暴露
 
 | 函数 | 原因 |
 |------|------|
@@ -186,7 +200,7 @@ python -X utf8 -m mcp_server.server
 | # | 条件 | 结果 |
 |---|------|------|
 | 1 | MCP 服务器能正常启动 | ✅ PASS |
-| 2 | 工具总数 = 55 | ✅ PASS（55） |
+| 2 | 工具总数 = 62 | ✅ PASS（62） |
 | 3 | Phase 1 八工具全部可用 | ✅ PASS |
 | 4 | 销售公式 6 工具全部可用 | ✅ PASS |
 | 5 | `fetch_keys` 未被暴露 | ✅ PASS |
@@ -202,13 +216,12 @@ python -X utf8 -m mcp_server.server
 
 | 类别 | 数量 | 定位 |
 |------|------|------|
-| 只读工具（含 Wiki 检索 2 个 + guide 1 个） | 23 | **Wiki 工具是推理主轴，优先调用** |
-| 写入工具 | 17 | 事实档案 + 分析归档 + WCD 启动 |
+| 只读工具（含 Wiki 检索 3 个 + guide 1 个 + 工作流 2 个 + 配置 1 个） | 28 | **Wiki 工具是推理主轴，优先调用** |
+| 写入工具（含 WCD/WeFlow 启动 + 配置 1 个） | 19 | 事实档案 + 分析归档 + 后端启动 |
 | 公式工具（辅助参考） | 15 | chat-skills 遗产，核验而非套用 |
-| 工作流工具（Skill-MCP 融合） | 2 | skill_map / workflow_step |
-| **总计** | **57** | — |
+| **总计** | **62** | — |
 
-> Wiki 工具：`wiki_search`、`wiki_read`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
+> Wiki 工具：`wiki_context`（主入口）、`wiki_search`、`wiki_read`。Agent 分析前先检索 Wiki 找方法论，公式仅作辅助核验。
 > guide 工具：11 个主题的操作指南，Agent 不确定流程时调用 `guide(topic)`。
 
 ---
@@ -236,7 +249,7 @@ python -X utf8 -m mcp_server.server
 
 | 工作流 | 名称 | 步骤数 | 适用场景 |
 |--------|------|--------|----------|
-| `analysis` | 客户分析完整流程 | 13 步 | "分析XX"、"帮我看看XX" |
+| `analysis` | 客户分析完整流程 | 12 步 | "分析XX"、"帮我看看XX" |
 | `emergency_reply` | 紧急回复流程 | 4 步 | "客户发了XX怎么回" |
 | `weekly` | 周报流程 | 2 步 | "做周报" |
 | `maintain` | 维持关系流程 | 4 步 | "维持关系" |
@@ -246,24 +259,23 @@ python -X utf8 -m mcp_server.server
 ```
 0: person_sync        → 同步最新消息
 1: person_brief       → 获取全局视图
-2: wiki_search        → 查阅知识库建立方法论框架
-3: wiki_read          → 读取 Wiki 页面全文
-4: person_chat        → 获取聊天记录
-5: person_metrics     → 获取指标数据
-6: person_signals     → 获取信号详情
-7: person_timeline    → 获取关系时间线
-8: person_evidence    → 查阅事实档案
-9: formula_get_params → 获取战态公式参数
-10: sales_get_params  → 获取销售公式参数
-11: sales_calc_bq     → 公式核验（辅助参考）
-12: save_from_markdown → 保存分析报告
+2: wiki_context       → 批量构建 Wiki 知识上下文（合并搜索+读取）
+3: person_chat        → 获取聊天记录
+4: person_metrics     → 获取指标数据
+5: person_signals     → 获取信号详情
+6: person_timeline    → 获取关系时间线
+7: person_evidence    → 查阅事实档案
+8: formula_get_params → 获取战态公式参数
+9: sales_get_params  → 获取销售公式参数
+10: sales_calc_bq     → 公式核验（辅助参考）
+11: save_from_markdown → 保存分析报告
 ```
 
 ### 10.5 双向索引数据源
 
 `skill/mcp_index.yaml` 是融合架构的核心数据源，包含：
 
-- **tools**：46+ 个工具的映射（下一步建议、Skill 参考、工作流位置）
+- **tools**：58 个工具的映射（下一步建议、Skill 参考、工作流位置）
 - **workflows**：4 个工作流的详细步骤定义
 - **scenarios**：场景到工作流的路由映射
 
@@ -301,8 +313,9 @@ skill_map('person_brief')        # 查 person_brief 之后能调什么
 | 工具 | 下一步建议 |
 |------|-----------|
 | `person_sync` | 调 `person_brief` 获取全局视图 |
-| `person_brief` | 看到信号后立即调 `wiki_search` |
-| `person_chat` | 看到聊天模式后调 `wiki_search` |
-| `person_metrics` | 看到数值后调 `wiki_search` 或 `sales_calc_bq` |
+| `person_brief` | 看到信号后立即调 `wiki_context` 建立方法论框架 |
+| `person_chat` | 看到聊天模式后调 `wiki_context` |
+| `person_metrics` | 看到数值后调 `wiki_context` 或 `sales_calc_bq` |
+| `wiki_context` | 批量建框架后，如需精确单页钻取调 `wiki_search` + `wiki_read` |
 | `wiki_search` | 找到条目后用 `wiki_read` 读全文 |
 | `sales_get_params` | 接下来代入销售公式计算 |

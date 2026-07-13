@@ -10,7 +10,8 @@
 |------|------|
 | `core.py` | 共享基础设施：`_get_conn`、`_resolve_person`、`_build_cross_refs`、`_extract_sections` 等 |
 | `context.py` | `ContextBuilder` — 从数据库和文件系统组装客户上下文 |
-| `registry.py` | `SkillRegistry` — 解析 skill 文件目录，提供搜索索引 |
+| `response.py` | `ToolEnvelope`、`ok`、`err` — 工具响应封装 |
+| `maintain.py` | `maintain_candidates` — 维持关系候选人筛选 |
 
 ## 按域拆分
 
@@ -25,7 +26,7 @@
 | `write.py` | `agent_note`, `agent_date`, `agent_evaluate`, `agent_events`, `agent_save_analysis`, `agent_save_from_markdown` | 数据写入 |
 | `moments.py` | `moments_stats`, `sync_moments_to_archive` | 朋友圈互动 |
 | `sync_agent.py` | `agent_sync`, `sync_person` | 数据同步 |
-| `report.py` | `agent_metrics`, `agent_status`, `agent_rank`, `agent_weekly` | 指标与报告 |
+| `report.py` | `agent_metrics`, `agent_status`, `agent_rank`, `agent_weekly`, `agent_compare_analysis` | 指标与报告 |
 | `identity_ops.py` | `agent_contact`, `agent_exclude`, `agent_failure`, `agent_sticker` | 身份与排除管理 |
 | `signals.py` | `_detect_signals`, `detect_manipulation_signals`, `_detect_moments_chat_signals`, `_query_signal_messages` | 信号检测（含销售信号） |
 
@@ -39,7 +40,7 @@ tools.py (包装层)
     ├→ signals.py (信号检测)
     ├→ core.py (共享基础设施 + Session 连接复用)
     ├→ context.py (上下文组装)
-    └→ registry.py (Skill 注册表)
+    └→ response.py (工具响应封装)
 ```
 
 底层依赖：

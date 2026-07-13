@@ -195,19 +195,21 @@ def sales_action(bq, bsp, bws, bs=0.0, pv=0.5) -> dict:
 
 `sales_params(name)` / `formula_params(name)` 从数据库指标推导以下 auto 参数：
 
-| auto 参数 | 推导逻辑 |
-|----------|---------|
-| `Sp` | max(0.1, qscore_personal × 1.5 + fback_quality × 0.3) |
-| `Fback` | fback.normalized |
-| `Fback_quality` | fback_quality.normalized |
-| `Rlatency` | rlatency.normalized |
-| `Ve` | escore.normalized（情绪效价） |
-| `EV` | escore_volatility.normalized（情绪波动） |
-| `S_cost` | log(1+msg_count)/log(500) × 0.5 + active_days/90 × 0.5（沉没成本） |
-| `Noise` | (1-fback_quality) × 0.5 + qscore_functional × 0.3（言语掩饰） |
-| `Exp` | 0.5 + rlatency × 0.3（心理预期） |
-| `User_Investment` | 1.0 - neediness_penalty |
-| `Scarcity_Loss` | (0.8-msg_vol_trend) × 0.3 + (0.8-latency_trend) × 0.2 |
+| auto 参数 | 推导逻辑 | 边界保护 |
+|----------|---------|---------|
+| `Sp` | qscore_personal × 1.5 + fback_quality × 0.3 | max(0.1, min(1.0, ...)) |
+| `Fback` | fback.normalized | — |
+| `Fback_quality` | fback_quality.normalized | — |
+| `Rlatency` | rlatency.normalized | — |
+| `Ve` | escore.normalized（情绪效价） | — |
+| `EV` | escore_volatility.normalized（情绪波动） | — |
+| `S_cost` | log(1+msg_count)/log(500) × 0.5 + active_days/90 × 0.5（沉没成本） | min(1.0, ...) |
+| `Noise` | (1-fback_quality) × 0.5 + qscore_functional × 0.3（言语掩饰） | — |
+| `Exp` | 0.5 + rlatency × 0.3（心理预期） | — |
+| `User_Investment` | 1.0 - neediness_penalty | max(0.1, ...) |
+| `Scarcity_Loss` | 条件计算：msg_vol_trend<0.8 时加 (0.8-msg_vol_trend)×0.3；latency_trend<0.8 时加 (0.8-latency_trend)×0.2 | min(0.5, ...) |
+
+> **注意**：`Scarcity_Loss` 仅在 `formula_params`（通用战态）中自动推导，`sales_params` 中不推导此参数（需手动传入 `sales_bws`）。
 
 ## 数据流
 
@@ -264,3 +266,4 @@ Agent 结合 Wiki[[购买意向指标]] 核验结果，做最终判断
 4. **公式来自 chat-skills 遗产**：原项目已删除，公式提取到此处并适配销售场景。与 SalesCRM Wiki 知识库是**软关联**关系（通过标注 Wiki 依据条目），不是派生关系。详见"目标 vs 现状"表。
 5. **参数校验**：所有公式函数对参数做类型校验（必须是数字），非数字参数会返回错误消息而非抛异常。
 6. **`sales_params` 可接受外部连接**：默认自己开 DB 连接，也支持 `conn` 参数传入，避免重复连接。
+7. **边界保护**：auto 参数推导时对关键参数做边界保护，防止极端值导致公式失真。`Sp` 限制在 [0.1, 1.0]，`User_Investment` 下限 0.1，`Scarcity_Loss` 上限 0.5，`S_cost` 上限 1.0。公式结果也有保护：`BSP` 限制在 [0.01, 10.0]，`BWS`/`EWS` 下限 -1.0。

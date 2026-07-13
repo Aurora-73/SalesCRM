@@ -1,4 +1,7 @@
-"""导出7个人的聊天记录到文件，供深度分析"""
+"""导出指定客户的聊天记录到文件，供深度分析。
+
+使用前将 targets 替换为实际客户名。输出目录 data/outputs/chat_analysis/ 已在 .gitignore 中。
+"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -12,14 +15,11 @@ config = load_config()
 conn = get_db(config.db_path)
 ensure_people_archives_migrated(conn, config.my_wxid)
 
+# 替换为实际客户名（请勿提交真实联系人信息）
 targets = [
     "客户A",
     "客户B",
     "客户C",
-    "客户D",
-    "客户E",
-    "客户F",
-    "客户G",
 ]
 
 out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "outputs", "chat_analysis")

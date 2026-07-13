@@ -36,7 +36,7 @@ def maintain_candidates(max_people: int = 10) -> list[Candidate] | str:
     2. 过滤 recent_days > 1（超过 1 天没联系）
     3. 过滤 signal_level 不是"无信号"
     4. 按优先级排序：
-       - 热度下降（recent > 3 且 trend < 0）最优先
+       - 热度下降（recent > 3 且 trend < -0.005）最优先
        - 有意向但未推进（signal_level ≥ 弱意向 且 recent > 1）次之
        - 高潜力未投入（neediness_penalty > 0.9 且 recent > 2）再次
     5. 返回 top N

@@ -8,7 +8,7 @@
 
 | 文件 | 行数 | 功能 |
 |------|------|------|
-| `metrics.py` | 1117 | 16 指标计算 + neediness_penalty + interaction_pattern + 动态信号 + 销售指标 |
+| `metrics.py` | 1277 | 16 指标计算 + neediness_penalty + interaction_pattern + 动态信号 + 销售指标 |
 | `ranker.py` | 269 | 排名引擎（加权排序 + risers/fallers 检测） |
 | `events.py` | ~300 | 活动时间线 / 事件检测（15 种事件类型 + 里程碑 + 5 个分类） |
 | `exclude.py` | 300 | 5 层排除系统 + 账号合并管理 |
@@ -162,14 +162,18 @@ def format_timeline(events, group_by_month=True) -> str:
 ```python
 @dataclass
 class Event:
-    event_type: EventType       # 事件类型枚举
-    date: str                   # YYYY-MM-DD
-    detail: str                 # 详细描述
+    _id: str = ""
+    timestamp: str = ""         # ISO 格式时间戳
+    event_type: str = ""        # 事件类型（字符串，非枚举）
+    content: str = ""           # 事件内容描述
+    source: str = "manual"      # 来源（manual / auto）
     confidence: float = 1.0     # 置信度 (0-1)
-    category: TimelineCategory  # 事件分类
-    metadata: dict              # 附加元数据
+    tags: list[str] = ...       # 事件标签
+    ref: str = ""               # 关联引用
 
-    def to_dict(self) -> dict:  # 序列化为 dict
+    def to_dict(self) -> dict:           # 序列化为 dict
+    @classmethod
+    def from_dict(cls, d: dict) -> "Event":  # 从 dict 反序列化
 ```
 
 ## 排除系统（exclude.py）
