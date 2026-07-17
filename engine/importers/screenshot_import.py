@@ -232,8 +232,8 @@ def export_preview_json(preview: ImportPreview, output_path: Path) -> Path:
 
     JSON 结构：
     {
-      "wxid": "[REDACTED]",
-      "display_name": "[REDACTED]",
+      "wxid": "wxid_test_001",
+      "display_name": "测试联系人A",
       "platform": "xiaohongshu",
       "screenshots": 6,
       "base_time": "2026-06-05 17:51",

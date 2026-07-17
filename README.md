@@ -163,7 +163,7 @@ AI 可直接驱动完整分析工作流。
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/[REDACTED]-73/SalesCRM.git
+git clone https://github.com/your-username/SalesCRM.git
 cd SalesCRM
 
 # 2. 安装依赖
